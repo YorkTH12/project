@@ -1,0 +1,319 @@
+/* src/index.css (Cleaned & Responsive Version) */
+
+/* 1. Import Font */
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;700&family=Inter:wght@400;600;700&display=swap');
+
+/* 2. CSS Variables (Tokens) */
+:root {
+  /* Colors */
+  --bg: #f6f8fb;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --primary: #0f172a;      /* สีข้อความหลัก (เข้ม) */
+  --accent: #0ea5a4;       /* สีไฮไลท์ (เขียว/ฟ้า) */
+  --accent-dark: #0d8a89;
+  --danger: #ef4444;
+  --border-color: #e6eef3;
+  --input-bg: #fbfdff;
+
+  /* Layout */
+  --radius: 10px;
+  --max-width: 1100px;
+  --gap: 16px;
+  
+  /* Responsive Spacing & Safe Area */
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  
+  /* Base Font */
+  --base-font: 16px;
+  font-size: var(--base-font);
+}
+
+/* 3. CSS Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Kanit', 'Inter', "Segoe UI", Roboto, sans-serif;
+  background: linear-gradient(180deg, #f7fbfd 0%, var(--bg) 100%);
+  color: var(--primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Safe area padding */
+  padding-top: calc(var(--spacing-lg) + var(--safe-top));
+  padding-bottom: calc(var(--spacing-lg) + var(--safe-bottom));
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+}
+
+/* 4. Layout */
+.app-container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: clamp(12px, 3vw, 24px); /* Fluid padding */
+}
+
+/* 5. Typography (Fluid) */
+.title {
+  font-size: clamp(1.25rem, 2.4vw, 1.8rem);
+  font-weight: 700;
+  color: var(--primary);
+}
+.lead {
+  font-size: clamp(0.9rem, 1.6vw, 1rem);
+  color: var(--muted);
+  margin-top: 6px;
+}
+.error-text {
+  color: var(--danger);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* 6. Card */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: clamp(16px, 4vw, 20px);
+  box-shadow: 0 6px 18px rgba(12, 16, 23, 0.06);
+  width: 100%;
+}
+
+/* 7. Forms */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  width: 100%;
+}
+.form-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;           /* <-- allow wrapping so items won't force huge gaps */
+  align-items: stretch;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;              /* <-- important to allow children to shrink */
+  flex: 1 1 220px;           /* keeps desktop two-column behavior */
+}
+label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+textarea {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  outline: none;
+  font-size: 1rem;
+  width: 100%;
+  font-family: inherit;
+}
+input:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(14, 165, 164, 0.06);
+}
+
+/* Responsive overrides */
+@media (max-width: 720px) {
+  .form-row {
+    flex-direction: column;  /* stack fields vertically on mobile */
+    gap: 12px;
+  }
+  .form-group {
+    flex: 1 1 100%;          /* full width each field */
+    width: 100%;
+  }
+  .btn {
+    width: 100%;             /* buttons become full width for touch targets */
+  }
+}
+
+/* tighter rules for very small phones */
+@media (max-width: 480px) {
+  .form-row { gap: 10px; }
+  .form-group { padding: 0; }
+}
+
+/* 8. Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  min-height: 44px; /* Touch target */
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 0;
+  font-size: 0.95rem;
+  transition: all 160ms ease;
+}
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(14, 165, 164, 0.12);
+}
+.btn.primary:hover {
+  background: var(--accent-dark);
+}
+.btn.fullWidth {
+  width: 100%;
+}
+
+/* 9. Navbar / Header */
+.header {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin-bottom: var(--spacing-lg);
+  padding: 6px 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+.brand .logo {
+  width: clamp(36px, 7vw, 44px);
+  height: clamp(36px, 7vw, 44px);
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(14px, 2.6vw, 18px);
+  box-shadow: 0 2px 8px rgba(14, 165, 164, 0.12);
+}
+.brand-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.nav {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.nav a {
+  color: var(--primary);
+  text-decoration: none;
+  padding: 8px 12px;
+  min-height: 44px; /* Touch target */
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 160ms ease;
+}
+.nav a:hover {
+  background-color: rgba(0,0,0,0.03);
+}
+.nav a.cta {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(14, 165, 164, 0.14);
+}
+.nav a.cta:hover {
+  background: var(--accent-dark);
+}
+
+/* 10. Map Placeholder */
+.map-placeholder {
+  height: clamp(220px, 35vh, 420px);
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, #eef2f7, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border: 1px dashed var(--border-color);
+}
+
+/* 11. Accessibility */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 3px solid rgba(14, 165, 164, 0.18);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* 12. RESPONSIVE BREAKPOINTS */
+
+/* Small tablets / Large phones */
+@media (max-width: 720px) {
+  .nav {
+    gap: 8px;
+  }
+  .nav a {
+    padding: 8px 10px;
+  }
+}
+
+/* Typical phone widths */
+@media (max-width: 600px) {
+  body {
+    padding: var(--spacing-md);
+    padding-top: calc(var(--spacing-md) + var(--safe-top));
+    padding-bottom: calc(var(--spacing-md) + var(--safe-bottom));
+  }
+  .brand-name {
+    display: none; /* ซ่อนชื่อแบรนด์ เหลือแต่โลโก้ */
+  }
+}
+
+/* Narrow phone - stack nav */
+@media (max-width: 480px) {
+  .header {
+    flex-wrap: wrap; /* ให้ nav ตกมาล่างโลโก้ */
+  }
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-top: var(--spacing-sm);
+  }
+  .nav a {
+    width: 100%;
+    padding: 12px;
+    justify-content: center;
+  }
+  .form-row {
+    flex-direction: column;
+  }
+  .btn {
+    width: 100%;
+  }
+}

@@ -1,24 +1,21 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import AppRouter from './routes/AppRouter';
+import Navbar from './components/layout/Navbar';
+import 'leaflet/dist/leaflet.css';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    
+    <AuthProvider>
+      <BrowserRouter>
+        <Navbar /> {/* Navbar แสดงทุกหน้า */}
+        <div style={{ padding: '20px' }}>
+          <AppRouter />
+        </div>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
