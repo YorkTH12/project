@@ -1,0 +1,332 @@
+/* ====================================================================== */
+/* 1. ไฟล์: src/pages/UserFeedbackPage.js 
+/* (หน้าสำหรับ User ส่ง Feedback)
+/* ====================================================================== */
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../firebase/config';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+import '../styles/global.css';
+
+const UserFeedbackPage = () => {
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
+  const [type, setType] = useState('suggestion');
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!content) {
+      setError("กรุณากรอกรายละเอียด");
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    try {
+      const newFeedbackData = {
+        type: type,
+        content: content,
+        status: 'new',
+        createdAt: serverTimestamp(),
+        userId: currentUser ? currentUser.uid : null,
+        userEmail: currentUser ? currentUser.email : 'anonymous'
+      };
+
+      await addDoc(collection(db, 'feedback'), newFeedbackData);
+      setSuccess(true);
+      
+    } catch (err) {
+      console.error("Error submitting feedback: ", err);
+      setError("เกิดข้อผิดพลาด ไม่สามารถส่ง Feedback ได้");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div className="card" style={{ maxWidth: 500, margin: '2rem auto 0 auto', textAlign: 'center' }}>
+        <h2 className="title">ขอบคุณสำหรับ Feedback!</h2>
+        <p className="lead">เราได้รับข้อเสนอแนะของคุณแล้ว</p>
+        <button className="btn primary" onClick={() => navigate('/')} style={{marginTop: '1rem'}}>
+          กลับไปหน้าแรก
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 720, margin: '2rem auto 0 auto' }}>
+      <div style={{ marginBottom: 'var(--spacing-md)' }}>
+        <h2 className="title">ส่งข้อเสนอแนะ (Feedback)</h2>
+        <p className="lead">แจ้งปัญหา, บั๊ก, หรือข้อเสนอแนะเพื่อการพัฒนา</p>
+      </div>
+
+      <form className="form" onSubmit={handleSubmit}>
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="feedbackType">ประเภท</label>
+            <select 
+              id="feedbackType" 
+              value={type} 
+              onChange={(e) => setType(e.target.value)}
+              disabled={loading}
+              style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--input-bg)',
+                fontSize: '1rem',
+                width: '100%'
+              }}
+            >
+              <option value="suggestion">ข้อเสนอแนะ</option>
+              <option value="bug">แจ้งปัญหา (Bug)</option>
+              <option value="general">ทั่วไป</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="content">รายละเอียด (บังคับ)</label>
+            <textarea 
+              id="content" 
+              rows="5" 
+              value={content} 
+              onChange={(e) => setContent(e.target.value)} 
+              required 
+              disabled={loading}
+            />
+          </div>
+        </div>
+        {error && <p className="error-text">{error}</p>}
+        <button type="submit" className="btn primary fullWidth" disabled={loading} style={{marginTop: '1rem'}}>
+          {loading ? 'กำลังส่ง...' : 'ส่ง Feedback'}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default UserFeedbackPage;
+
+
+/* ====================================================================== */
+/* 2. ไฟล์: src/pages/AdminFeedbackDashboard.js
+/* (หน้าสำหรับ Admin อ่าน Feedback)
+/* ====================================================================== */
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase/config';
+import { collection, query, onSnapshot, doc, updateDoc, orderBy } from 'firebase/firestore';
+import '../styles/global.css';
+
+const formatDate = (timestamp) => {
+  if (!timestamp) return '...';
+  return new Date(timestamp.seconds * 1000).toLocaleString('th-TH');
+};
+
+const AdminFeedbackDashboard = () => {
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    const q = query(
+      collection(db, 'feedback'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fbArray = [];
+      querySnapshot.forEach((doc) => {
+        fbArray.push({ id: doc.id, ...doc.data() });
+      });
+      setFeedbackList(fbArray);
+      setLoading(false);
+    }, (err) => {
+      console.error(err);
+      setError("ไม่สามารถดึงข้อมูล Feedback ได้ (ตรวจสอบ Firestore Rules)");
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleUpdateStatus = async (feedbackId, newStatus) => {
+    const docRef = doc(db, 'feedback', feedbackId);
+    try {
+      await updateDoc(docRef, { status: newStatus });
+    } catch (err) {
+      console.error("Error updating status: ", err);
+      alert("อัปเดตสถานะไม่สำเร็จ");
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    if (status === 'resolved') return { background: '#C6F6D5', color: '#22543D' };
+    if (status === 'read') return { background: '#FEEBC8', color: '#744210' };
+    return { background: '#FED7D7', color: '#822727' }; // (new)
+  };
+
+  if (loading) {
+    return <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}><p>กำลังโหลด Feedback...</p></div>;
+  }
+  if (error) {
+    return <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}><p className="error-text">{error}</p></div>;
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}>
+      <div style={{ marginBottom: 'var(--spacing-md)' }}>
+        <h2 className="title">Admin Feedback Dashboard</h2>
+        <p className="lead">รายการ Feedback ทั้งหมด ({feedbackList.length} รายการ)</p>
+      </div>
+      <div className="form" style={{ gap: '1rem' }}>
+        {feedbackList.length === 0 && <p>ยังไม่มี Feedback</p>}
+        {feedbackList.map((fb) => (
+          <div key={fb.id} style={{ padding: 'var(--spacing-md)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span style={{ ...getStatusStyle(fb.status), padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {fb.status}
+                </span>
+                <span style={{ fontWeight: 600, color: 'var(--primary)' }}>
+                  {fb.type}
+                </span>
+                <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
+                  {fb.userEmail}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                {formatDate(fb.createdAt)}
+              </span>
+            </div>
+            <p style={{ marginTop: '0.5rem', background: '#f9f9f9', padding: '10px', borderRadius: '4px' }}>
+              {fb.content}
+            </p>
+            {fb.status !== 'resolved' && (
+              <div style={{ display: 'flex', gap: 10, marginTop: '0.5rem' }}>
+                {fb.status === 'new' && (
+                  <button className="btn" style={{padding: '4px 8px', fontSize: '0.8rem'}} onClick={() => handleUpdateStatus(fb.id, 'read')}>
+                    Mark as Read
+                  </button>
+                )}
+                <button className="btn primary" style={{padding: '4px 8px', fontSize: '0.8rem'}} onClick={() => handleUpdateStatus(fb.id, 'resolved')}>
+                  Mark as Resolved
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default AdminFeedbackDashboard;
+
+
+/* ====================================================================== */
+/* 3. ไฟล์: src/routes/AppRouter.js (ส่วนที่แก้ไข)
+/* (เพิ่ม Route /feedback และ /admin/feedback)
+/* ====================================================================== */
+// ... (imports)
+import UserFeedbackPage from '../pages/UserFeedbackPage';
+import AdminFeedbackDashboard from '../pages/AdminFeedbackDashboard';
+import AdminRoute from './AdminRoute'; // (สมมติว่าคุณมีไฟล์นี้)
+import Home from '../pages/Home';
+import Login from '../pages/Login';
+import Register from '../pages/Register';
+import ShopRegistrationForm from '../pages/ShopRegistrationForm';
+import ShopListPage from '../pages/ShopListPage';
+import EditShopPage from '../pages/EditShopPage';
+import OwnerRoute from './OwnerRoute';
+
+const AppRouter = () => {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/feedback" element={<UserFeedbackPage />} /> {/* 3. เพิ่ม Route นี้ (Public) */}
+
+      {/* Owner Routes (Owner & Admin) */}
+      <Route element={<OwnerRoute />}>
+        <Route path="/shop-form" element={<ShopRegistrationForm />} />
+        <Route path="/shop-list" element={<ShopListPage />} />
+        <Route path="/edit-shop/:shopId" element={<EditShopPage />} /> 
+      </Route>
+      
+      {/* Admin Only Routes */}
+      <Route element={<AdminRoute />}> {/* 4. สร้าง Group Route สำหรับ Admin */}
+         {/* (ย้าย AdminDashboard มาไว้ที่ /admin) */}
+        <Route path="/admin" element={<AdminDashboard />} /> 
+        <Route path="/admin/feedback" element={<AdminFeedbackDashboard />} /> {/* 5. Admin จะเข้าหน้านี้ผ่าน /admin/feedback */}
+      </Route>
+      
+    </Routes>
+  );
+};
+
+
+/* ====================================================================== */
+/* 4. ไฟล์: src/components/layout/Navbar.js (ส่วนที่แก้ไข)
+/* (เพิ่มลิงก์ /feedback)
+/* ====================================================================== */
+// ... (imports)
+// ... (โค้ด useAuth, handleLogout) ...
+
+const Navbar = () => {
+  // ... (โค้ด useAuth, handleLogout) ...
+  const { currentUser, userRole, logout } = useAuth(); // (ต้องมี userRole)
+
+  return (
+    <header className="header">
+      <Link to="/" className="brand">
+        <div className="logo">FB</div>
+        <span className="brand-name">Find Bottle Shops</span>
+      </Link>
+
+      <nav className="nav">
+        {/* (ลิงก์ Home) */}
+        <Link to="/">หน้าแรก (แผนที่)</Link>
+        
+        {/* (ลิงก์สำหรับ Owner/Admin) */}
+        {userRole === 'admin' && (
+          <>
+            <Link to="/admin">Admin Dashboard</Link>
+            <Link to="/admin/feedback">Admin Feedback</Link>
+          </>
+        )}
+        {userRole === 'owner' && (
+          <>
+            <Link to="/shop-list">ร้านค้าของฉัน</Link>
+            <Link to="/shop-form">ลงทะเบียนร้าน</Link>
+          </>
+        )}
+
+        {/* (ลิงก์ Feedback (Public)) */}
+        <Link to="/feedback">ส่ง Feedback</Link>
+
+        {/* (ลิงก์ Login/Logout) */}
+        {!currentUser ? (
+          <>
+            <Link to="/login">ล็อกอิน</Link>
+            <Link to="/register" className="btn primary" style={{textDecoration: 'none'}}>สมัครสมาชิก</Link>
+          </>
+        ) : (
+          <button onClick={logout} className="btn ghost">
+            ออกจากระบบ
+          </button>
+        )}
+      </nav>
+    </header>
+  );
+};

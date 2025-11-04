@@ -71,17 +71,27 @@ const Navbar = () => {
         >
           <Link to="/" onClick={() => setNavOpen(false)}>หน้าแรก (แผนที่)</Link>
 
+          {/* --- (จุดที่แก้ไข) --- */}
+
+          {/* (ลิงก์สำหรับ Admin) */}
           {userRole === 'admin' && (
-            <Link to="/admin" onClick={() => setNavOpen(false)}>Dashboard แอดมิน</Link>
+            <>
+              <Link to="/admin" onClick={() => setNavOpen(false)}>Dashboard แอดมิน</Link>
+              {/* (Admin ใช้ ShopList ในการดูทั้งหมด) */}
+              <Link to="/shop-list" onClick={() => setNavOpen(false)}>จัดการสถานที่</Link>
+            </>
           )}
 
-          {(userRole === 'owner' || userRole === 'admin') && (
-            <Link to="/shop-form" onClick={() => setNavOpen(false)}>ลงทะเบียนร้านค้า</Link>
+          {/* (ลิงก์สำหรับ Owner) */}
+          {userRole === 'owner' && (
+            <>
+              <Link to="/shop-list" onClick={() => setNavOpen(false)}>การจัดการร้าน/ตู้</Link>
+              <Link to="/shop-form" onClick={() => setNavOpen(false)}>ลงทะเบียนร้าน</Link>
+              <Link to="/booth-form" onClick={() => setNavOpen(false)}>ลงทะเบียนตู้</Link>
+            </>
           )}
 
-          {(userRole === 'owner' || userRole === 'admin') && (
-            <Link to="/shop-list" onClick={() => setNavOpen(false)}>จัดการร้านของฉัน</Link>
-          )}
+          {/* --- (จบจุดที่แก้ไข) --- */}
 
           {!currentUser ? (
             <>
@@ -97,7 +107,8 @@ const Navbar = () => {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: isMobile ? 8 : 0 }}>
               <div style={{ color: 'var(--muted)', fontWeight: 600 }}>
-                สวัสดี, {currentUser?.email ?? 'ผู้ใช้'}
+                {/* (ใช้ email หรือ phone number) */}
+                สวัสดี, {currentUser?.email ?? currentUser?.phoneNumber ?? 'ผู้ใช้'}
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>Role: {userRole}</div>
               </div>
               <button

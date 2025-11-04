@@ -88,74 +88,53 @@ body {
 .card {
   background: var(--card);
   border-radius: var(--radius);
-  padding: clamp(16px, 4vw, 20px);
-  box-shadow: 0 6px 18px rgba(12, 16, 23, 0.06);
-  width: 100%;
+  padding: 20px;              /* คลีนพาดิ้งสม่ำเสมอ */
+  box-shadow: 0 8px 22px rgba(12,16,23,0.06);
 }
 
 /* 7. Forms */
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 14px;                  /* ช่องว่างระหว่างกลุ่มฟิลด์ */
   width: 100%;
 }
 .form-row {
   display: flex;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;           /* <-- allow wrapping so items won't force huge gaps */
-  align-items: stretch;
+  gap: 14px;
+  flex-wrap: wrap;            /* ห่อเมื่อพื้นที่ไม่พอ */
+  align-items: flex-start;
 }
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;              /* <-- important to allow children to shrink */
-  flex: 1 1 220px;           /* keeps desktop two-column behavior */
+  gap: 8px;
+  min-width: 0;               /* สำคัญ — ป้องกัน overflow */
+  flex: 1 1 48%;              /* two-column layout (ประมาณ) */
+}
+.form-group.full {
+  flex-basis: 100%;
+  width: 100%;
 }
 label {
   font-size: 0.9rem;
-  font-weight: 500;
   color: var(--muted);
+  margin-bottom: 6px;
 }
-input[type="text"], 
-input[type="email"], 
-input[type="password"], 
+input[type="text"],
+input[type="email"],
+input[type="password"],
 textarea {
-  padding: 12px 14px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.96rem;
+  height: 44px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: var(--input-bg);
-  outline: none;
-  font-size: 1rem;
-  width: 100%;
-  font-family: inherit;
+  transition: border-color .12s ease, box-shadow .12s ease;
 }
-input:focus, textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(14, 165, 164, 0.06);
-}
-
-/* Responsive overrides */
-@media (max-width: 720px) {
-  .form-row {
-    flex-direction: column;  /* stack fields vertically on mobile */
-    gap: 12px;
-  }
-  .form-group {
-    flex: 1 1 100%;          /* full width each field */
-    width: 100%;
-  }
-  .btn {
-    width: 100%;             /* buttons become full width for touch targets */
-  }
-}
-
-/* tighter rules for very small phones */
-@media (max-width: 480px) {
-  .form-row { gap: 10px; }
-  .form-group { padding: 0; }
-}
+textarea { height: auto; min-height: 84px; padding-top:10px; padding-bottom:10px; }
 
 /* 8. Buttons */
 .btn {
@@ -180,9 +159,8 @@ input:focus, textarea:focus {
 .btn.primary:hover {
   background: var(--accent-dark);
 }
-.btn.fullWidth {
-  width: 100%;
-}
+.btn.fullWidth { width: 100%; }
+button[type="submit"] { margin-top: 8px; }
 
 /* 9. Navbar / Header */
 .header {
@@ -258,6 +236,11 @@ input:focus, textarea:focus {
   color: var(--muted);
   border: 1px dashed var(--border-color);
 }
+.leaflet-container {
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+}
 
 /* 11. Accessibility */
 :focus {
@@ -279,6 +262,12 @@ input:focus, textarea:focus {
   .nav a {
     padding: 8px 10px;
   }
+  .card { padding: 16px; }
+  .form { gap: 12px; }
+  .form-row { flex-direction: column; gap: 12px; }
+  .form-group { flex: 1 1 100%; width: 100%; }
+  .form-group.full { padding-top: 6px; }
+  .map-placeholder, .leaflet-container { height: 260px; }
 }
 
 /* Typical phone widths */
@@ -316,4 +305,13 @@ input:focus, textarea:focus {
   .btn {
     width: 100%;
   }
+  .card { padding: 14px; border-radius: 12px; }
+  input[type="text"], input[type="email"], input[type="password"] { height: 42px; }
+  .title { font-size: 1.05rem; }
+  .map-placeholder, .leaflet-container { height: 220px; }
+}
+
+/* small polish */
+.form-group + .form-group { /* reduce large vertical gaps between stacked groups */
+  margin-top: 0;
 }

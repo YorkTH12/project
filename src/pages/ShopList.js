@@ -1,48 +1,74 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import '../styles/global.css';
 
+// --- (CSS สำหรับ Modal) ---
+const modalOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: 'rgba(0, 0, 0, 0.7)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+};
+
+const modalContentStyle = {
+  background: 'white',
+  padding: '20px',
+  borderRadius: '8px',
+  width: '90%',
+  maxWidth: '500px',
+  zIndex: 1001,
+};
+// --- (จบส่วน Modal CSS) ---
+
 const ShopList = () => {
-  const { currentUser, userRole } = useAuth(); // ดึง Role มาเช็ค
+  const { currentUser, userRole } = useAuth();
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // (State สำหรับ Modal - ถูกต้อง)
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [currentShopId, setCurrentShopId] = useState(null);
+  const [archiveReason, setArchiveReason] = useState("");
+
+  // (useEffect - ถูกต้อง)
   useEffect(() => {
     if (!currentUser) {
       setLoading(false);
       return; 
     }
-
     setLoading(true);
-    let q; // (ตัวแปรสำหรับเก็บ Query)
+    let q; 
 
-    // --- ⭐️ นี่คือ Logic ที่คุณต้องการ ⭐️ ---
     if (userRole === 'admin') {
-      // 1. ถ้าเป็น Admin: ดึง 'shops' ทั้งหมด
       q = query(collection(db, 'shops'));
-
     } else if (userRole === 'owner') {
-      // 2. ถ้าเป็น Owner: ดึงเฉพาะที่ ownerId ตรงกับเรา
+      // --- (จุดแก้ไข) ---
+      // (Query นี้ถูกต้องแล้ว มันจะดึง "ทุกอย่าง" ที่ Owner เป็นเจ้าของ)
       q = query(
         collection(db, 'shops'), 
-        where('ownerId', '==', currentUser.uid)
+        where('ownerId', '==', currentUser.uid),
+        where('status', 'in', ['pending', 'approved', 'rejected']) 
       );
+      // --- (จบจุดแก้ไข) ---
     } else {
-      // (กรณีอื่นๆ ที่ไม่ใช่ admin/owner)
       setError("คุณไม่มีสิทธิ์ดูหน้านี้");
       setLoading(false);
       return;
     }
-    // --- ⭐️ จบส่วน Logic ⭐️ ---
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const shopsArray = [];
       querySnapshot.forEach((doc) => {
-        // ดึง doc.id (ซึ่งก็คือ shopId) มาด้วย
         shopsArray.push({ id: doc.id, ...doc.data() }); 
       });
       setShops(shopsArray);
@@ -54,66 +80,166 @@ const ShopList = () => {
     });
 
     return () => unsubscribe();
-  }, [currentUser, userRole]); // ทำงานใหม่เมื่อ User เปลี่ยน
+  }, [currentUser, userRole]);
 
+  // (ฟังก์ชันเปิด Modal - ถูกต้อง)
+  const handleArchiveClick = (shopId) => {
+    setCurrentShopId(shopId);
+    setArchiveReason(""); 
+    setIsArchiveModalOpen(true);
+  };
+
+  // (ฟังก์ชันปิด Modal - ถูกต้อง)
+  const handleModalClose = () => {
+    setIsArchiveModalOpen(false);
+    setCurrentShopId(null);
+  };
+
+  // (ฟังก์ชันยืนยันการซ่อน - ถูกต้อง)
+  const handleConfirmArchive = async () => {
+    if (!archiveReason) {
+      alert("กรุณาใส่เหตุผลที่ต้องการซ่อน/ลบร้านค้า");
+      return;
+    }
+    
+    const shopDocRef = doc(db, 'shops', currentShopId);
+    try {
+      await updateDoc(shopDocRef, {
+          status: 'archived', // <-- Soft Delete
+          archiveReason: archiveReason, // <-- บันทึกเหตุผล
+          updatedAt: serverTimestamp()
+      });
+      alert("เก็บถาวรร้านค้าสำเร็จ");
+      handleModalClose(); // ปิด Modal
+    } catch (err) {
+      console.error("Error archiving document: ", err);
+      alert("เกิดข้อผิดพลาด");
+    }
+  };
+  
   if (loading) {
-    return <p style={{ textAlign: 'center', marginTop: '2rem' }}>กำลังโหลด...</p>;
+    return <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}><p>กำลังโหลด...</p></div>;
   }
 
   if (error) {
-    return <p className="error-text" style={{ textAlign: 'center', margin: '2rem auto' }}>{error}</p>;
+    return <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}><p className="error-text">{error}</p></div>;
   }
 
-  // ส่วนแสดงผล
-  // src/pages/ShopListPage.js
-// ... (imports และ โค้ดส่วนบนเหมือนเดิม) ...
-
-// ... (useEffect เหมือนเดิม) ...
-
+  // (ส่วน Render)
   return (
-    <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}>
-      {/* ... (ส่วน Title/Lead เหมือนเดิม) ... */}
-      
-      <div className="form" style={{ gap: '1rem' }}>
-        {/* ... (ส่วน loading/error/empty) ... */}
-        
-        {shops.map((shop) => (
-          <div key={shop.id} /* ... (style เหมือนเดิม) ... */ >
-            <div>
-              <h3 style={{ fontWeight: 600 }}>{shop.shopName}</h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>{shop.address}</p>
-              
-              {/* (แสดงสถานะ) */}
-              <span style={{
-                  padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem',
-                  background: shop.status === 'approved' ? '#C6F6D5' : (shop.status === 'pending' ? '#FEEBC8' : '#FED7D7'),
-                  color: shop.status === 'approved' ? '#22543D' : (shop.status === 'pending' ? '#744210' : '#822727')
-                }}>
-                  สถานะ: {shop.status}
-              </span>
-              
-              {/* --- ⭐️ เพิ่มส่วนนี้ ⭐️ --- */}
-              {shop.status === 'rejected' && (
-                <p className="error-text" style={{fontSize: '0.9rem', margin: '4px 0 0 0'}}>
-                  <b>เหตุผลที่ถูกปฏิเสธ:</b> {shop.rejectionReason}
-                </p>
-              )}
-              {/* ------------------------- */}
+    <>
+      {/* (Modal JSX - ถูกต้อง) */}
+      {isArchiveModalOpen && (
+        <div style={modalOverlayStyle} onClick={handleModalClose}>
+          <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <h2 className="title">เหตุผลในการซ่อนร้านค้า</h2>
+            <p className="lead" style={{fontSize: '0.9rem'}}>กรุณาระบุสาเหตุ (เช่น ปิดปรับปรุง, เลิกกิจการ) Admin จะใช้ข้อมูลนี้ในการตรวจสอบ</p>
+            <div className="form-group" style={{marginTop: '1rem'}}>
+              <label htmlFor="reason">เหตุผล (บังคับ):</label>
+              <textarea 
+                id="reason"
+                rows="4"
+                value={archiveReason}
+                onChange={(e) => setArchiveReason(e.target.value)}
+                style={{width: '100%'}} 
+              />
             </div>
-
-            {/* ปุ่ม "แก้ไข" */}
-            <Link 
-              to={`/edit-shop/${shop.id}`}
-              className="btn" 
-              style={{ textDecoration:'none', background: '#EDF2F7', color: '#1A202C' }}
-            >
-              {/* เปลี่ยนข้อความปุ่ม ถ้าถูกปฏิเสธ */}
-              {shop.status === 'rejected' ? 'แก้ไขและส่งใหม่' : 'แก้ไข'}
-            </Link>
+            <div style={{display: 'flex', gap: 12, marginTop: 16}}>
+              <button className="btn primary" onClick={handleConfirmArchive} style={{background: 'var(--danger)'}}>
+                ยืนยันการซ่อน
+              </button>
+              <button className="btn" onClick={handleModalClose}>
+                ยกเลิก
+              </button>
+            </div>
           </div>
-        ))}
+        </div>
+      )}
+      
+      {/* (ส่วนแสดง Card) */}
+      <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}>
+        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+          <h2 className="title">
+            {userRole === 'admin' ? 'จัดการสถานที่ทั้งหมด' : 'สถานที่ของฉัน'}
+          </h2>
+          <p className="lead">พบ {shops.length} รายการ (ไม่รวมที่เก็บถาวร)</p>
+        </div>
+
+        <div className="form" style={{ gap: '1rem' }}>
+          {shops.length === 0 && (
+            <p>
+              {userRole === 'owner' ?
+                'คุณยังไม่มีร้านค้าหรือตู้ที่ลงทะเบียนไว้' :
+                'ไม่พบข้อมูลในระบบ'}
+            </p>
+          )}
+
+          {shops.map((shop) => (
+            <div
+              key={shop.id}
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: 'var(--spacing-md)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius)'
+              }}
+            >
+              <div>
+                <h3 style={{ fontWeight: 600 }}>{shop.shopName}</h3>
+                {/* (แสดง Type และ Status) */}
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', margin: '4px 0' }}>
+                  <span style={{
+                    background: shop.type === 'shop' ? 'var(--accent)' : '#E9D5FF',
+                    color: shop.type === 'shop' ? 'white' : '#5B21B6',
+                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600
+                  }}>
+                    ประเภท: {shop.type === 'shop' ? 'ร้านค้า' : (shop.type === 'booth' ? 'ตู้' : 'N/A')}
+                  </span>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem',
+                    background: shop.status === 'approved' ? '#C6F6D5' : (shop.status === 'pending' ? '#FEEBC8' : '#FED7D7'),
+                    color: shop.status === 'approved' ? '#22543D' : (shop.status === 'pending' ? '#744210' : '#822727')
+                  }}>
+                    สถานะ: {shop.status}
+                  </span>
+                </div>
+
+                {shop.status === 'rejected' && (
+                  <p className="error-text" style={{ fontSize: '0.9rem', margin: '4px 0 0 0' }}>
+                    <b>เหตุผลที่ถูกปฏิเสธ:</b> {shop.rejectionReason}
+                  </p>
+                )}
+              </div>
+
+              {/* (ส่วนปุ่มจัดการ) */}
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <Link
+                  to={`/edit-shop/${shop.id}`}
+                  className="btn"
+                  style={{ textDecoration: 'none', background: '#EDF2F7', color: '#1A202C' }}
+                >
+                  {shop.status === 'rejected' ? 'แก้ไขและส่งใหม่' : 'แก้ไข'}
+                </Link>
+
+                {/* (ปุ่ม ลบ/ซ่อน - ถูกต้อง) */}
+                {userRole === 'owner' && (
+                  <button
+                    className="btn"
+                    style={{ background: 'var(--danger)', color: 'white' }}
+                    onClick={() => handleArchiveClick(shop.id)}
+                  >
+                    ลบ/ซ่อน
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

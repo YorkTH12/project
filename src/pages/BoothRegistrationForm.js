@@ -1,3 +1,4 @@
+// src/pages/BoothRegistrationForm.js
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
@@ -6,21 +7,20 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/global.css';
 
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
-// 1. (Import Icons)
-import { blueIcon, greyIcon } from '../utils/mapIcons';
+// 1. (Import Icons - ใช้สีเขียว)
+import { greenIcon, greyIcon } from '../utils/mapIcons';
 
 // (Geofencing settings)
-const KMUTNB_COORDS = [13.8197, 100.5146]; // (ใช้ Array สำหรับ Leaflet)
+const KMUTNB_COORDS = [13.8197, 100.5146];
 const MAX_DISTANCE_KM = 5; 
 
-// 2. (แก้ไข MapClickHandler ให้ใช้ Icon)
+// 2. (แก้ไข MapClickHandler ให้ใช้ Icon สีเขียว)
 function MapClickHandler({ onMapClick, markerPosition }) {
   useMapEvents({ click(e) { onMapClick(e.latlng); } });
   
-  // (หน้านี้สำหรับลงทะเบียน 'shop' ดังนั้นใช้ blueIcon)
   return markerPosition ? (
-    <Marker position={markerPosition} icon={blueIcon}>
-      <Popup>คุณปักหมุดที่นี่</Popup>
+    <Marker position={markerPosition} icon={greenIcon}>
+      <Popup>คุณปักหมุดตู้ที่นี่</Popup>
     </Marker>
   ) : null;
 }
@@ -34,14 +34,14 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 function deg2rad(deg) { return deg * (Math.PI / 180); }
 // ---------------------------------
 
-const ShopRegistrationForm = () => {
+const BoothRegistrationForm = () => { // (เปลี่ยนชื่อ Component)
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   // (States ฟอร์ม)
-  const [shopName, setShopName] = useState('');
+  const [shopName, setShopName] = useState(''); // (หมายถึง "ชื่อตู้")
   const [address, setAddress] = useState('');
-  const [operatingHours, setOperatingHours] = useState('');
+  const [operatingHours, setOperatingHours] = useState('เปิด 24 ชั่วโมง'); // (ค่าเริ่มต้น)
   const [description, setDescription] = useState('');
   const [markerPosition, setMarkerPosition] = useState(null);
   
@@ -50,18 +50,15 @@ const ShopRegistrationForm = () => {
 
   const handleMapClick = (latlng) => { setMarkerPosition(latlng); };
 
-  // (handleSubmit - ไม่ต้องใช้ Storage)
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // (Input validation)
     if (!currentUser) { setError("คุณต้องล็อกอินก่อน"); return; }
-    if (!markerPosition) { setError("กรุณาปักหมุดตำแหน่งร้านค้า"); return; }
+    if (!markerPosition) { setError("กรุณาปักหมุดตำแหน่งตู้"); return; }
 
-    // (Geofencing check)
     const distance = getDistanceFromLatLonInKm(KMUTNB_COORDS[0], KMUTNB_COORDS[1], markerPosition.lat, markerPosition.lng);
     if (distance > MAX_DISTANCE_KM) {
-      setError(`ร้านของคุณอยู่ห่างจาก มจพ. ${distance.toFixed(2)} กม. (ไกลเกิน ${MAX_DISTANCE_KM} กม.)`);
+      setError(`ตู้ของคุณอยู่ห่างจาก มจพ. ${distance.toFixed(2)} กม. (ไกลเกิน ${MAX_DISTANCE_KM} กม.)`);
       return;
     }
     
@@ -69,7 +66,8 @@ const ShopRegistrationForm = () => {
     setError('');
 
     try {
-      const newShopData = {
+      // --- 3. (จุดแก้ไขหลัก) ---
+      const newBoothData = {
         shopName,
         address,
         operatingHours,
@@ -80,14 +78,15 @@ const ShopRegistrationForm = () => {
         },
         ownerId: currentUser.uid,
         status: 'pending',
-        type: 'shop',
+        type: 'booth', // <-- ⭐️ เปลี่ยน Type เป็น 'booth'
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        // (ไม่มี proofImageUrl และ boothStatus)
       };
 
-      await addDoc(collection(db, 'shops'), newShopData);
+      await addDoc(collection(db, 'shops'), newBoothData); // (ยังใช้ collection 'shops')
       
-      alert("ส่งคำขอลงทะเบียนร้านค้าสำเร็จ!");
+      alert("ส่งคำขอลงทะเบียนตู้สำเร็จ!");
       navigate('/shop-list');
 
     } catch (err) {
@@ -101,44 +100,42 @@ const ShopRegistrationForm = () => {
   return (
     <div className="card" style={{ maxWidth: 720, margin: '2rem auto 0 auto' }}>
       <div style={{ marginBottom: 'var(--spacing-md)' }}>
-        <h2 className="title">ลงทะเบียนร้านค้า</h2>
-        <p className="lead">กรอกข้อมูลและปักหมุดร้าน (ต้องอยู่ในระยะ {MAX_DISTANCE_KM} กม. จาก มจพ.)</p>
+        <h2 className="title">ลงทะเบียนตู้แยกขวด (Booth)</h2>
+        <p className="lead">กรอกข้อมูลและปักหมุดตู้ (ต้องอยู่ในระยะ {MAX_DISTANCE_KM} กม. จาก มจพ.)</p>
       </div>
 
       <form className="form" onSubmit={handleSubmit}>
         
-        {/* (Inputs - shopName, hours, address, description) */}
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="shopName">ชื่อร้าน (บังคับ)</label>
+            <label htmlFor="shopName">ชื่อตู้ / สถานที่ตั้ง (บังคับ)</label>
             <input id="shopName" type="text" value={shopName} onChange={(e) => setShopName(e.target.value)} required disabled={loading} />
           </div>
           <div className="form-group">
-            <label htmlFor="hours">เวลาเปิด-ปิด (บังคับ)</label>
+            <label htmlFor="hours">เวลาทำการ (บังคับ)</label>
             <input id="hours" type="text" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required disabled={loading} />
           </div>
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="address">ที่อยู่ (บังคับ)</label>
+            <label htmlFor="address">ที่อยู่/คำอธิบายที่ตั้ง (บังคับ)</label>
             <input id="address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} required disabled={loading} />
           </div>
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="description">คำอธิบายร้านค้า (ไม่บังคับ)</label>
+            <label htmlFor="description">คำอธิบายเพิ่มเติม (ไม่บังคับ)</label>
             <textarea id="description" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} />
           </div>
         </div>
         
-        {/* (แผนที่ - 3. แก้ไข Icon ของ มจพ.) */}
+        {/* (แผนที่ - ใช้ greyIcon สำหรับ มจพ.) */}
         <div className="form-row">
           <div className="form-group">
-            <label>ตำแหน่งร้านค้า (บังคับ - คลิกปักหมุด)</label>
+            <label>ตำแหน่งตู้ (บังคับ - คลิกปักหมุด)</label>
             <MapContainer center={KMUTNB_COORDS} zoom={13} style={{ height: '300px', width: '100%', borderRadius: 'var(--radius)', zIndex: 0 }}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <MapClickHandler onMapClick={handleMapClick} markerPosition={markerPosition} />
-              {/* (ใช้ greyIcon สำหรับจุดศูนย์กลาง) */}
               <Marker position={KMUTNB_COORDS} icon={greyIcon}>
                 <Popup>มจพ. (จุดศูนย์กลาง)</Popup>
               </Marker>
@@ -149,11 +146,11 @@ const ShopRegistrationForm = () => {
         {error && <p className="error-text">{error}</p>}
 
         <button type="submit" className="btn primary fullWidth" disabled={loading} style={{marginTop: '1rem'}}>
-          {loading ? 'กำลังส่งข้อมูล...' : 'ส่งคำขอลงทะเบียน'}
+          {loading ? 'กำลังส่งข้อมูล...' : 'ส่งคำขอลงทะเบียนตู้'}
         </button>
       </form>
     </div>
   );
 };
 
-export default ShopRegistrationForm;
+export default BoothRegistrationForm;

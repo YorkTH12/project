@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import '../styles/global.css';
 
-// 1. Import React-Leaflet
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-// (อย่าลืม import 'leaflet/dist/leaflet.css' ใน index.js หรือ App.js)
+// 1. (Import Icons)
+import { getIcon } from '../utils/mapIcons';
 
-// --- (CSS สำหรับ Modal) ---
+// (Modal CSS - เหมือนเดิม)
 const modalOverlayStyle = {
   position: 'fixed',
   top: 0,
@@ -32,38 +32,36 @@ const modalContentStyle = {
 };
 // --- (จบส่วน Modal CSS) ---
 
-// 2. Sub-Component สำหรับแก้บั๊ก Leaflet ใน Modal
-// (Leaflet จะคำนวณขนาดผิดถ้าถูกซ่อนตอนโหลด)
-function ResizingMap({ coords }) {
+// 2. (แก้ไข ResizingMap ให้รับ Icon)
+function ResizingMap({ coords, icon }) {
   const map = useMap();
   useEffect(() => {
-    // หน่วงเวลาเล็กน้อย (100ms) เพื่อให้ Modal แสดงผลเสร็จ
-    // แล้วค่อยสั่งให้แผนที่ "วาดตัวเองใหม่"
     setTimeout(() => {
       map.invalidateSize();
-      map.setView(coords, 16); // ตั้งค่าจุดกลางใหม่
+      map.setView(coords, 16);
     }, 100);
   }, [coords, map]);
-
-  return <Marker position={coords} />;
+  // (ใช้ Icon ที่ส่งเข้ามา)
+  return <Marker position={coords} icon={icon} />;
 }
 
 // --- Component หลัก ---
 const AdminDashboard = () => {
+  // (States - เหมือนเดิม)
   const [allShops, setAllShops] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // State สำหรับ Modal (Reject)
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [currentShopId, setCurrentShopId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
-
-  // 3. State ใหม่สำหรับ Modal (Map)
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [currentMapCoords, setCurrentMapCoords] = useState(null);
+  
+  // --- 3. (เพิ่ม State) ---
+  const [currentMapType, setCurrentMapType] = useState('shop'); // (เก็บ Type ของร้านที่จะดู)
+  // -------------------------
 
-  // (useEffect ดึงข้อมูล allShops เหมือนเดิม)
+  // (useEffect ดึง allShops - เหมือนเดิม)
   useEffect(() => {
     setLoading(true);
     const q = query(collection(db, 'shops'));
@@ -82,70 +80,137 @@ const AdminDashboard = () => {
     return () => unsubscribe();
   }, []); 
 
-  // (ฟังก์ชัน Reject Modal ทั้งหมด ...handleApprove, handleRejectClick, etc. ... เหมือนเดิม)
+  
+  // (ฟังก์ชันการทำงานของปุ่ม - handleApprove, handleRejectClick, etc. - เหมือนเดิม)
+  
+  // ฟังก์ชัน "อนุมัติ"
   const handleApprove = async (shopId) => {
-    // ... (เหมือนเดิม) ...
+    const shopDocRef = doc(db, 'shops', shopId);
+    try {
+      await updateDoc(shopDocRef, {
+        status: 'approved',
+        rejectionReason: "", 
+        updatedAt: serverTimestamp(),
+      });
+      alert(`อนุมัติร้านค้า ${shopId} เรียบร้อย`);
+    } catch (err) {
+      console.error("Error approving shop: ", err);
+      alert("เกิดข้อผิดพลาดในการอนุมัติ");
+    }
   };
+
+  // ฟังก์ชัน "กดปุ่มปฏิเสธ" (เปิด Modal)
   const handleRejectClick = (shopId) => {
     setCurrentShopId(shopId);
     setRejectionReason("");
     setIsRejectModalOpen(true);
   };
+
+  // ฟังก์ชัน "ปิด Modal" (ใช้ทั้ง 2 Modal)
   const handleModalClose = () => {
     setIsRejectModalOpen(false);
+    setIsMapModalOpen(false);
     setCurrentShopId(null);
   };
-  const handleConfirmReject = async () => {
-    // ... (เหมือนเดิม) ...
+  
+  // ฟังก์ชัน "ลบร้านค้า" (ถาวร)
+  const handleDeleteShop = async (shopId, shopName) => {
+    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการ "ลบถาวร" ร้าน "${shopName}"?\n(การกระทำนี้ไม่สามารถกู้คืนได้)`)) {
+      try {
+        const shopDocRef = doc(db, 'shops', shopId);
+        await deleteDoc(shopDocRef); 
+        alert("ลบร้านค้าสำเร็จ");
+      } catch (err) {
+        console.error("Error deleting document: ", err);
+        alert("เกิดข้อผิดพลาดในการลบ");
+      }
+    }
   };
 
-  // 4. ฟังก์ชันใหม่สำหรับเปิด/ปิด Map Modal
-  const handleOpenMap = (coords) => {
-    setCurrentMapCoords([coords.lat, coords.lng]); // Leaflet ใช้ Array [lat, lng]
+  // ฟังก์ชัน "ยืนยันการปฏิเสธ" (ใน Modal)
+  const handleConfirmReject = async () => {
+    if (!rejectionReason) {
+      alert("กรุณาใส่เหตุผลที่ปฏิเสธ");
+      return;
+    }
+
+    const shopDocRef = doc(db, 'shops', currentShopId);
+    try {
+      await updateDoc(shopDocRef, {
+        status: 'rejected',
+        rejectionReason: rejectionReason, 
+        updatedAt: serverTimestamp(),
+      });
+      alert(`ปฏิเสธร้านค้า ${currentShopId} เรียบร้อย`);
+      handleModalClose(); 
+    } catch (err) {
+      console.error("Error rejecting document: ", err);
+      alert("เกิดข้อผิดพลาดในการปฏิเสธ");
+    }
+  };
+  
+  // --- 4. (แก้ไข handleOpenMap) ---
+  const handleOpenMap = (coords, type) => {
+    setCurrentMapCoords([coords.lat, coords.lng]);
+    setCurrentMapType(type || 'shop'); // (รับ type มาเก็บ)
     setIsMapModalOpen(true);
   };
-  const handleCloseMap = () => {
-    setIsMapModalOpen(false);
-    setCurrentMapCoords(null);
-  };
+  // -------------------
 
   return (
-    <> {/* (ใช้ Fragment หุ้ม) */}
-      
-      {/* --- 5. Map Modal --- */}
+    <>
+      {/* 5. (Map Modal - แก้ไข) */}
       {isMapModalOpen && currentMapCoords && (
-        <div style={modalOverlayStyle} onClick={handleCloseMap}>
+        <div style={modalOverlayStyle} onClick={handleModalClose}>
           <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
             <h2 className="title" style={{marginBottom: 12}}>ตำแหน่งร้านค้า</h2>
-            <MapContainer
-              center={currentMapCoords}
-              zoom={16}
-              style={{ height: '300px', width: '100%', borderRadius: '8px' }}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            <MapContainer center={currentMapCoords} zoom={16} style={{ height: '300px', width: '100%', borderRadius: '8px' }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              {/* (ส่ง Icon ที่ถูกต้องเข้าไป) */}
+              <ResizingMap 
+                coords={currentMapCoords} 
+                icon={getIcon(currentMapType)} // <-- ⭐️ แก้ไขตรงนี้
               />
-              {/* ใช้ Sub-component เพื่อ resize */}
-              <ResizingMap coords={currentMapCoords} />
             </MapContainer>
-            <button className="btn" onClick={handleCloseMap} style={{marginTop: 12}}>
-              ปิด
-            </button>
+            <button className="btn" onClick={handleModalClose} style={{marginTop: 12}}>ปิด</button>
           </div>
         </div>
       )}
 
-      {/* --- Reject Modal (เหมือนเดิม) --- */}
+      {/* (Reject Modal - เหมือนเดิม) */}
       {isRejectModalOpen && (
         <div style={modalOverlayStyle} onClick={handleModalClose}>
-          {/* ... (โค้ด Modal ของ Reject เหมือนเดิม) ... */}
+          <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <h2 className="title">เหตุผลที่ปฏิเสธ</h2>
+            <p className="lead" style={{fontSize: '0.9rem'}}>กรุณาระบุสาเหตุที่ปฏิเสธร้านค้า (ID: {currentShopId})</p>
+            <div className="form-group" style={{marginTop: '1rem'}}>
+              <label htmlFor="reason">เหตุผล:</label>
+              <textarea 
+                id="reason"
+                rows="4"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                style={{width: '100%'}} 
+              />
+            </div>
+            <div style={{display: 'flex', gap: 12, marginTop: 16}}>
+              <button className="btn primary" onClick={handleConfirmReject} style={{background: 'var(--danger)'}}>
+                ยืนยันการปฏิเสธ
+              </button>
+              <button className="btn" onClick={handleModalClose}>
+                ยกเลิก
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* --- หน้ารายการ Admin (เหมือนเดิม) --- */}
+      {/* (หน้ารายการ Admin) */}
       <div className="card" style={{ maxWidth: 960, margin: '2rem auto 0 auto' }}>
-        {/* ... (ส่วน Title/Lead) ... */}
+        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+          <h2 className="title">Admin Dashboard (จัดการทุกสถานที่)</h2>
+          <p className="lead">พบสถานที่ทั้งหมด {allShops.length} แห่งในระบบ</p>
+        </div>
 
         {loading && <p>กำลังโหลด...</p>}
         {error && <p className="error-text">{error}</p>}
@@ -154,15 +219,46 @@ const AdminDashboard = () => {
           {allShops.map((shop) => (
             <div 
               key={shop.id} 
-              // ... (style เหมือนเดิม) ...
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: 'var(--spacing-md)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius)'
+              }}
             >
               <div>
                 <h3 style={{ fontWeight: 600 }}>{shop.shopName}</h3>
-                <p style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>{shop.address}</p>
                 
-                {/* 6. เปลี่ยนจาก <a> เป็น <button> */}
+                {/* (แสดง Type และ Status - เหมือนเดิม) */}
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', margin: '4px 0' }}>
+                  <span style={{
+                    background: shop.type === 'shop' ? 'var(--accent)' : '#E9D5FF', 
+                    color: shop.type === 'shop' ? 'white' : '#5B21B6',
+                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600
+                  }}>
+                    ประเภท: {shop.type === 'shop' ? 'ร้านค้า' : (shop.type === 'booth' ? 'ตู้' : 'N/A')}
+                  </span>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    background: shop.status === 'approved' ? '#C6F6D5' : (shop.status === 'pending' ? '#FEEBC8' : (shop.status === 'rejected' ? '#FED7D7' : '#E2E8F0')),
+                    color: shop.status === 'approved' ? '#22543D' : (shop.status === 'pending' ? '#744210' : (shop.status === 'rejected' ? '#822727' : '#4A5568')),
+                  }}>
+                    สถานะ: {shop.status}
+                  </span>
+                </div>
+                
+                <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: 0 }}>{shop.address}</p>
+                
+                {/* 6. (ปุ่มดูแผนที่ - แก้ไข) */}
                 <button 
-                  onClick={() => handleOpenMap(shop.coordinates)}
+                  onClick={() => handleOpenMap(shop.coordinates, shop.type)} // <-- ⭐️ แก้ไขตรงนี้
                   style={{
                     background: 'none',
                     border: 'none',
@@ -176,23 +272,26 @@ const AdminDashboard = () => {
                 >
                   ดูตำแหน่งบนแผนที่
                 </button>
-
-                {/* (แสดงสถานะเหมือนเดิม) */}
-                <span style={{ fontSize: '0.9rem', color: 'var(--muted)', marginLeft: '1rem' }}>
-                  สถานะ: {shop.status}
-                </span>
                 
-                {/* (แสดงเหตุผล Reject เหมือนเดิม) */}
+                {/* (แสดงเหตุผล Reject/Archived - เหมือนเดิม) */}
                 {shop.status === 'rejected' && (
-                  <p className="error-text" style={{fontSize: '0.8rem', margin: 0}}>
-                    เหตุผล: {shop.rejectionReason}
+                  <p className="error-text" style={{fontSize: '0.8rem', margin: '4px 0 0 0'}}>
+                    เหตุผล (Reject): {shop.rejectionReason}
+                  </p>
+                )}
+                {shop.status === 'archived' && (
+                  <p style={{fontSize: '0.8rem', margin: '4px 0 0 0', color: 'var(--muted)', fontWeight: 500, fontStyle: 'italic'}}>
+                    เหตุผล (ซ่อนโดย Owner): {shop.archiveReason}
                   </p>
                 )}
               </div>
 
-              {/* (ส่วนปุ่มจัดการ เหมือนเดิม) */}
+              {/* (ส่วนปุ่มจัดการ - เหมือนเดิม) */}
               <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                <Link to={`/edit-shop/${shop.id}`} /* ... */ >
+                <Link to={`/edit-shop/${shop.id}`} 
+                  className="btn" 
+                  style={{ textDecoration:'none', background: '#EDF2F7', color: '#1A202D' }}
+                >
                   แก้ไข
                 </Link>
                 
@@ -211,6 +310,13 @@ const AdminDashboard = () => {
                     ปฏิเสธ
                   </button>
                 )}
+                <button 
+                  className="btn"
+                  style={{ background: '#2D3748', color: 'white' }}
+                  onClick={() => handleDeleteShop(shop.id, shop.shopName)}
+                >
+                  ลบถาวร
+                </button>
               </div>
             </div>
           ))}
