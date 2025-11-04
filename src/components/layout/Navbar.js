@@ -78,7 +78,8 @@ const Navbar = () => {
             <>
               <Link to="/admin" onClick={() => setNavOpen(false)}>Dashboard แอดมิน</Link>
               {/* (Admin ใช้ ShopList ในการดูทั้งหมด) */}
-              <Link to="/shop-list" onClick={() => setNavOpen(false)}>จัดการสถานที่</Link>
+              <Link to="/shop-form" onClick={() => setNavOpen(false)}>ลงทะเบียนร้านค้า</Link>
+              <Link to="/booth-form" onClick={() => setNavOpen(false)}>ลงทะเบียนตู้</Link>
             </>
           )}
 

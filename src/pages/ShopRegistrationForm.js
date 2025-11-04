@@ -6,18 +6,15 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/global.css';
 
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
-// 1. (Import Icons)
 import { blueIcon, greyIcon } from '../utils/mapIcons';
 
 // (Geofencing settings)
-const KMUTNB_COORDS = [13.8197, 100.5146]; // (ใช้ Array สำหรับ Leaflet)
+const KMUTNB_COORDS = [13.8197, 100.5146];
 const MAX_DISTANCE_KM = 5; 
 
-// 2. (แก้ไข MapClickHandler ให้ใช้ Icon)
+// (MapClickHandler - เหมือนเดิม)
 function MapClickHandler({ onMapClick, markerPosition }) {
   useMapEvents({ click(e) { onMapClick(e.latlng); } });
-  
-  // (หน้านี้สำหรับลงทะเบียน 'shop' ดังนั้นใช้ blueIcon)
   return markerPosition ? (
     <Marker position={markerPosition} icon={blueIcon}>
       <Popup>คุณปักหมุดที่นี่</Popup>
@@ -32,33 +29,68 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); var d = R * c; return d;
 }
 function deg2rad(deg) { return deg * (Math.PI / 180); }
-// ---------------------------------
 
 const ShopRegistrationForm = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // (States ฟอร์ม)
   const [shopName, setShopName] = useState('');
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(''); // (State นี้จะถูก Set อัตโนมัติ)
   const [operatingHours, setOperatingHours] = useState('');
   const [description, setDescription] = useState('');
   const [markerPosition, setMarkerPosition] = useState(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // --- 1. (เพิ่ม State) ---
+  const [isGeocoding, setIsGeocoding] = useState(false); // (State สำหรับแสดง "กำลังค้นหา...")
+  // -------------------------
 
-  const handleMapClick = (latlng) => { setMarkerPosition(latlng); };
+  // --- 2. (ฟังก์ชันใหม่) ---
+  // (ฟังก์ชันสำหรับเรียก Nominatim API)
+  const fetchAddressFromCoords = async (lat, lng) => {
+    setIsGeocoding(true); // (เริ่มหมุน)
+    setError('');
+    try {
+      // (ใช้ API ของ Nominatim (ฟรี))
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=th`);
+      
+      if (!response.ok) {
+        throw new Error('Nominatim API call failed');
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.display_name) {
+        setAddress(data.display_name); // ⭐️ (กรอกที่อยู่ให้อัตโนมัติ)
+      } else {
+        setError("ไม่สามารถค้นหาที่อยู่จากพิกัดนี้ได้");
+        setAddress(''); // (เคลียร์ค่าเก่า)
+      }
+    } catch (err) {
+      console.error("Reverse Geocoding Error:", err);
+      setError("เกิดข้อผิดพลาดในการค้นหาที่อยู่ (กรุณาลองปักใหม่ หรือกรอกเอง)");
+      setAddress(''); // (เคลียร์ค่าเก่า)
+    }
+    setIsGeocoding(false); // (หยุดหมุน)
+  };
+  // -------------------------
 
-  // (handleSubmit - ไม่ต้องใช้ Storage)
+  // --- 3. (แก้ไข) ---
+  const handleMapClick = (latlng) => {
+    setMarkerPosition(latlng); // 1. ปักหมุด
+    fetchAddressFromCoords(latlng.lat, latlng.lng); // 2. ค้นหาที่อยู่จากหมุด
+  };
+  // -------------------
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // (Input validation)
     if (!currentUser) { setError("คุณต้องล็อกอินก่อน"); return; }
     if (!markerPosition) { setError("กรุณาปักหมุดตำแหน่งร้านค้า"); return; }
+    if (isGeocoding) { setError("กรุณารอการค้นหาที่อยู่ให้เสร็จสิ้นก่อน"); return; }
 
-    // (Geofencing check)
     const distance = getDistanceFromLatLonInKm(KMUTNB_COORDS[0], KMUTNB_COORDS[1], markerPosition.lat, markerPosition.lng);
     if (distance > MAX_DISTANCE_KM) {
       setError(`ร้านของคุณอยู่ห่างจาก มจพ. ${distance.toFixed(2)} กม. (ไกลเกิน ${MAX_DISTANCE_KM} กม.)`);
@@ -71,7 +103,7 @@ const ShopRegistrationForm = () => {
     try {
       const newShopData = {
         shopName,
-        address,
+        address, // (ใช้ที่อยู่ที่ได้มา)
         operatingHours,
         description,
         coordinates: {
@@ -101,13 +133,12 @@ const ShopRegistrationForm = () => {
   return (
     <div className="card" style={{ maxWidth: 720, margin: '2rem auto 0 auto' }}>
       <div style={{ marginBottom: 'var(--spacing-md)' }}>
-        <h2 className="title">ลงทะเบียนร้านค้า</h2>
+        <h2 className="title">ลงทะเบียนร้านค้า (Shop)</h2>
         <p className="lead">กรอกข้อมูลและปักหมุดร้าน (ต้องอยู่ในระยะ {MAX_DISTANCE_KM} กม. จาก มจพ.)</p>
       </div>
 
       <form className="form" onSubmit={handleSubmit}>
         
-        {/* (Inputs - shopName, hours, address, description) */}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="shopName">ชื่อร้าน (บังคับ)</label>
@@ -118,12 +149,26 @@ const ShopRegistrationForm = () => {
             <input id="hours" type="text" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required disabled={loading} />
           </div>
         </div>
+        
+        {/* --- 4. (แก้ไข Input ที่อยู่) --- */}
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="address">ที่อยู่ (บังคับ)</label>
-            <input id="address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} required disabled={loading} />
+            <label htmlFor="address">ที่อยู่ (บังคับ - ระบบจะกรอกให้เมื่อปักหมุด)</label>
+            <input 
+              id="address" 
+              type="text" 
+              value={isGeocoding ? 'กำลังค้นหาที่อยู่...' : address} // (แสดงสถานะ)
+              onChange={(e) => {
+                setIsGeocoding(false); // (ถ้า User พิมพ์เอง ก็หยุด loading)
+                setAddress(e.target.value); 
+              }} 
+              required 
+              disabled={loading} 
+            />
           </div>
         </div>
+        {/* --------------------------- */}
+
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="description">คำอธิบายร้านค้า (ไม่บังคับ)</label>
@@ -131,14 +176,12 @@ const ShopRegistrationForm = () => {
           </div>
         </div>
         
-        {/* (แผนที่ - 3. แก้ไข Icon ของ มจพ.) */}
         <div className="form-row">
           <div className="form-group">
             <label>ตำแหน่งร้านค้า (บังคับ - คลิกปักหมุด)</label>
             <MapContainer center={KMUTNB_COORDS} zoom={13} style={{ height: '300px', width: '100%', borderRadius: 'var(--radius)', zIndex: 0 }}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <MapClickHandler onMapClick={handleMapClick} markerPosition={markerPosition} />
-              {/* (ใช้ greyIcon สำหรับจุดศูนย์กลาง) */}
               <Marker position={KMUTNB_COORDS} icon={greyIcon}>
                 <Popup>มจพ. (จุดศูนย์กลาง)</Popup>
               </Marker>
@@ -148,8 +191,8 @@ const ShopRegistrationForm = () => {
 
         {error && <p className="error-text">{error}</p>}
 
-        <button type="submit" className="btn primary fullWidth" disabled={loading} style={{marginTop: '1rem'}}>
-          {loading ? 'กำลังส่งข้อมูล...' : 'ส่งคำขอลงทะเบียน'}
+        <button type="submit" className="btn primary fullWidth" disabled={loading || isGeocoding} style={{marginTop: '1rem'}}>
+          {loading ? 'กำลังส่งข้อมูล...' : (isGeocoding ? 'กำลังค้นหาที่อยู่...' : 'ส่งคำขอลงทะเบียน')}
         </button>
       </form>
     </div>

@@ -6,13 +6,12 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import '../styles/global.css';
 
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
-// 1. (Import Icons)
 import { getIcon } from '../utils/mapIcons';
 
 // (พิกัดศูนย์กลางเริ่มต้น)
 const defaultCenter = [13.8245, 100.5302];
 
-// 2. (แก้ไข MapClickHandler ให้รับ Icon)
+// (Component ย่อยสำหรับรับการคลิก)
 function MapClickHandler({ onMapClick, markerPosition, icon }) {
   const map = useMapEvents({
      click(e) { onMapClick(e.latlng); },
@@ -23,7 +22,6 @@ function MapClickHandler({ onMapClick, markerPosition, icon }) {
     }
   }, [markerPosition, map]);
 
-  // (ใช้ Icon ที่ส่งเข้ามา)
   return markerPosition ? (
     <Marker position={markerPosition} icon={icon}>
       <Popup>ตำแหน่งที่เลือก</Popup>
@@ -50,12 +48,13 @@ const EditShopPage = () => {
   const [currentStatus, setCurrentStatus] = useState(null);
   const [rejectionReason, setRejectionReason] = useState(null); 
   const [originalOwnerId, setOriginalOwnerId] = useState(null);
+  const [currentType, setCurrentType] = useState('shop'); 
   
-  // --- 3. (เพิ่ม State) ---
-  const [currentType, setCurrentType] = useState('shop'); // (เก็บ Type ของร้าน)
+  // --- 1. (เพิ่ม State) ---
+  const [isGeocoding, setIsGeocoding] = useState(false);
   // -------------------------
 
-  // (useEffect - ดึงข้อมูล)
+  // (useEffect - ดึงข้อมูล - เหมือนเดิม)
   useEffect(() => {
     if (!currentUser || !shopId) {
       setLoading(false);
@@ -86,10 +85,7 @@ const EditShopPage = () => {
         setMapCenter([coords.lat, coords.lng]);
         setCurrentStatus(shopData.status);
         setOriginalOwnerId(shopData.ownerId);
-
-        // --- 4. (เพิ่ม) ---
-        setCurrentType(shopData.type || 'shop'); // (ดึง Type มาเก็บ)
-        // ------------------
+        setCurrentType(shopData.type || 'shop'); 
         
         if (shopData.status === 'rejected' && shopData.rejectionReason) {
           setRejectionReason(shopData.rejectionReason);
@@ -104,13 +100,39 @@ const EditShopPage = () => {
     fetchShopData();
   }, [shopId, currentUser, userRole]);
 
-  // (handleSubmit - Logic การอัปเดต)
+  // --- 2. (ฟังก์ชันใหม่) ---
+  const fetchAddressFromCoords = async (lat, lng) => {
+    setIsGeocoding(true);
+    setError('');
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=th`);
+      if (!response.ok) throw new Error('Nominatim API call failed');
+      const data = await response.json();
+      
+      if (data && data.display_name) {
+        setAddress(data.display_name); // ⭐️ (กรอกที่อยู่ให้อัตโนมัติ)
+      } else {
+        setError("ไม่สามารถค้นหาที่อยู่จากพิกัดนี้ได้");
+        setAddress('');
+      }
+    } catch (err) {
+      console.error("Reverse Geocoding Error:", err);
+      setError("เกิดข้อผิดพลาดในการค้นหาที่อยู่ (กรุณาลองปักใหม่ หรือกรอกเอง)");
+      setAddress('');
+    }
+    setIsGeocoding(false);
+  };
+  // -------------------------
+
+  // (handleSubmit - เหมือนเดิม)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!markerPosition) {
       setError("เกิดข้อผิดพลาด: ไม่พบตำแหน่งพิกัด");
       return;
     }
+    if (isGeocoding) { setError("กรุณารอการค้นหาที่อยู่ให้เสร็จสิ้นก่อน"); return; }
+    
     setLoading(true);
     setError('');
     const updatedData = {
@@ -125,7 +147,6 @@ const EditShopPage = () => {
       updatedAt: serverTimestamp(),
       status: 'pending',
       rejectionReason: ""
-      // (เราไม่แก้ไข Type)
     };
     try {
       const shopDocRef = doc(db, 'shops', shopId);
@@ -139,11 +160,13 @@ const EditShopPage = () => {
     setLoading(false);
   };
 
+  // --- 3. (แก้ไข) ---
   const handleMapClick = (latlng) => {
-    setMarkerPosition(latlng);
+    setMarkerPosition(latlng); // 1. ปักหมุด
+    fetchAddressFromCoords(latlng.lat, latlng.lng); // 2. ค้นหาที่อยู่
   };
+  // -------------------
 
-  // (Render Loading / Error)
   if (loading) {
     return <div className="card" style={{ maxWidth: 720, margin: '2rem auto 0 auto', textAlign: 'center' }}><p>กำลังโหลด...</p></div>;
   }
@@ -151,11 +174,10 @@ const EditShopPage = () => {
     return <div className="card" style={{ maxWidth: 720, margin: '2rem auto 0 auto', textAlign: 'center' }}><p className="error-text">{error}</p></div>;
   }
 
-  // (ส่วน Render Form)
   return (
     <div className="card" style={{ maxWidth: 720, margin: '2rem auto 0 auto' }}>
       <div style={{ marginBottom: 'var(--spacing-md)' }}>
-        <h2 className="title">แก้ไขข้อมูลร้านค้า</h2>
+        <h2 className="title">แก้ไขข้อมูลสถานที่</h2>
         <p className="lead" style={{fontSize: '0.9rem', overflowWrap: 'break-word'}}>Shop ID: {shopId}</p>
         {userRole === 'admin' && <p className="lead" style={{fontSize: '0.9rem'}}>เจ้าของ: {originalOwnerId}</p>}
       </div>
@@ -169,18 +191,16 @@ const EditShopPage = () => {
             borderRadius: 'var(--radius)',
             marginBottom: 'var(--spacing-md)'
          }}>
-          <h3 style={{fontWeight: 600, color: 'white'}}>! ร้านค้าของคุณถูกปฏิเสธ</h3>
+          <h3 style={{fontWeight: 600, color: 'white'}}>! สถานที่นี้ถูกปฏิเสธ</h3>
           <p><b>เหตุผลจาก Admin:</b> {rejectionReason}</p>
           <p style={{marginTop: '0.5rem', fontSize: '0.9rem'}}>กรุณาแก้ไขข้อมูลให้ถูกต้อง แล้วกด "บันทึก" เพื่อส่งตรวจสอบอีกครั้ง</p>
         </div>
       )}
 
-      {/* (ตัวฟอร์ม - ใช้ UI ที่แก้ไขแล้ว) */}
 <form className="form" onSubmit={handleSubmit}>
-    {/* (แถว 1: ชื่อร้าน + เวลา) */}
     <div className="form-row">
         <div className="form-group">
-            <label htmlFor='shopName'>ชื่อร้าน</label>
+            <label htmlFor='shopName'>ชื่อสถานที่ (ร้าน/ตู้)</label>
             <input
                 id='shopName'
                 type="text"
@@ -201,21 +221,24 @@ const EditShopPage = () => {
         </div>
     </div>
 
-    {/* (แถว 2: ที่อยู่) */}
+    {/* --- 4. (แก้ไข Input ที่อยู่) --- */}
     <div className="form-row">
         <div className="form-group">
-            <label htmlFor='address'>ที่อยู่</label>
+            <label htmlFor='address'>ที่อยู่ (ระบบจะกรอกให้เมื่อปักหมุด)</label>
             <input
                 id='address'
                 type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                value={isGeocoding ? 'กำลังค้นหาที่อยู่...' : address} // (แสดงสถานะ)
+                onChange={(e) => {
+                  setIsGeocoding(false); 
+                  setAddress(e.target.value); 
+                }}
                 required
             />
         </div>
     </div>
+    {/* --------------------------- */}
 
-    {/* (แถว 3: คำอธิบาย) */}
     <div className="form-row">
         <div className="form-group">
             <label htmlFor='description'>คำอธิบาย</label>
@@ -228,7 +251,6 @@ const EditShopPage = () => {
         </div>
     </div>
 
-    {/* --- 5. (แถว 4: แผนที่ - แก้ไข) --- */}
     <div className="form-row">
         <div className="form-group">
             <label>ตำแหน่ง (คลิกเพื่อย้ายตำแหน่ง)</label>
@@ -237,21 +259,19 @@ const EditShopPage = () => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution="&copy; OpenStreetMap contributors"
                 />
-                {/* (ส่ง Icon ที่ถูกต้องเข้าไป) */}
                 <MapClickHandler 
                   onMapClick={handleMapClick} 
                   markerPosition={markerPosition} 
-                  icon={getIcon(currentType)} // <-- ⭐️ แก้ไขตรงนี้
+                  icon={getIcon(currentType)} // (ใช้ Icon ตาม Type)
                 />
             </MapContainer>
         </div>
     </div>
-    {/* --------------------------- */}
 
     {error && <p className="error-text">{error}</p>}
 
-    <button type="submit" className="btn primary fullWidth" disabled={loading} style={{marginTop: '1rem'}}>
-        {loading ? 'กำลังบันทึก...' : (currentStatus === 'rejected' ? 'บันทึกและส่งตรวจสอบใหม่' : 'บันทึกการเปลี่ยนแปลง')}
+    <button type="submit" className="btn primary fullWidth" disabled={loading || isGeocoding} style={{marginTop: '1rem'}}>
+        {loading ? 'กำลังบันทึก...' : (isGeocoding ? 'กำลังค้นหาที่อยู่...' : (currentStatus === 'rejected' ? 'บันทึกและส่งตรวจสอบใหม่' : 'บันทึกการเปลี่ยนแปลง'))}
     </button>
 </form>
     </div>
