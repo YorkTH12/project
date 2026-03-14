@@ -1,17 +1,22 @@
-// import React from 'react';
-// import { Navigate, Outlet } from 'react-router-dom';
-// import { useAuth } from '../context/AuthContext';
+import React from 'react';
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-// const OwnerRoute = () => {
-//   const { userRole } = useAuth();
+const OwnerRoute = () => {
+  const { userRole, currentUser } = useAuth();
 
-//   // Admin ก็ควรเข้าหน้าของ Owner ได้ (เผื่อต้องแก้ไข)
-//   if (userRole === 'owner' || userRole === 'admin') {
-//     return <Outlet />; // อนุญาตให้ไปต่อ
-//   }
+  // ถ้ายังไม่ได้ล็อกอิน ให้เด้งไปหน้า Login
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // อนุญาตให้ Owner และ Admin เข้าถึงหน้านี้ได้
+  if (userRole === 'owner' || userRole === 'admin') {
+    return <Outlet />; 
+  }
   
-//   // ถ้าไม่ใช่ ให้เด้งกลับหน้าหลัก
-//   return <Navigate to="/" replace />;
-// };
+  // ถ้าไม่ใช่ ให้เด้งกลับหน้าหลัก
+  return <Navigate to="/" replace />;
+};
 
-// export default OwnerRoute;
+export default OwnerRoute;

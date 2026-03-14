@@ -8,11 +8,9 @@ import '../styles/global.css';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { blueIcon, greyIcon } from '../utils/mapIcons';
 
-// (Geofencing settings)
 const KMUTNB_COORDS = [13.8197, 100.5146];
 const MAX_DISTANCE_KM = 5; 
 
-// (MapClickHandler - เหมือนเดิม)
 function MapClickHandler({ onMapClick, markerPosition }) {
   useMapEvents({ click(e) { onMapClick(e.latlng); } });
   return markerPosition ? (
@@ -22,7 +20,6 @@ function MapClickHandler({ onMapClick, markerPosition }) {
   ) : null;
 }
 
-// (Haversine functions)
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   var R = 6371; var dLat = deg2rad(lat2 - lat1); var dLon = deg2rad(lon2 - lon1);
   var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
@@ -35,59 +32,58 @@ const ShopRegistrationForm = () => {
   const navigate = useNavigate();
 
   const [shopName, setShopName] = useState('');
-  const [address, setAddress] = useState(''); // (State นี้จะถูก Set อัตโนมัติ)
+  const [address, setAddress] = useState(''); 
   const [operatingHours, setOperatingHours] = useState('');
   const [description, setDescription] = useState('');
   const [markerPosition, setMarkerPosition] = useState(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // --- 1. (เพิ่ม State) ---
-  const [isGeocoding, setIsGeocoding] = useState(false); // (State สำหรับแสดง "กำลังค้นหา...")
-  // -------------------------
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
-  // --- 2. (ฟังก์ชันใหม่) ---
-  // (ฟังก์ชันสำหรับเรียก Nominatim API)
   const fetchAddressFromCoords = async (lat, lng) => {
-    setIsGeocoding(true); // (เริ่มหมุน)
+    setIsGeocoding(true);
     setError('');
     try {
-      // (ใช้ API ของ Nominatim (ฟรี))
       const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=th`);
-      
-      if (!response.ok) {
-        throw new Error('Nominatim API call failed');
-      }
-      
+      if (!response.ok) throw new Error('Nominatim API call failed');
       const data = await response.json();
       
       if (data && data.display_name) {
-        setAddress(data.display_name); // ⭐️ (กรอกที่อยู่ให้อัตโนมัติ)
+        setAddress(data.display_name);
       } else {
         setError("ไม่สามารถค้นหาที่อยู่จากพิกัดนี้ได้");
-        setAddress(''); // (เคลียร์ค่าเก่า)
+        setAddress('');
       }
     } catch (err) {
       console.error("Reverse Geocoding Error:", err);
       setError("เกิดข้อผิดพลาดในการค้นหาที่อยู่ (กรุณาลองปักใหม่ หรือกรอกเอง)");
-      setAddress(''); // (เคลียร์ค่าเก่า)
+      setAddress('');
     }
-    setIsGeocoding(false); // (หยุดหมุน)
+    setIsGeocoding(false);
   };
-  // -------------------------
 
-  // --- 3. (แก้ไข) ---
   const handleMapClick = (latlng) => {
-    setMarkerPosition(latlng); // 1. ปักหมุด
-    fetchAddressFromCoords(latlng.lat, latlng.lng); // 2. ค้นหาที่อยู่จากหมุด
+    setMarkerPosition(latlng);
+    fetchAddressFromCoords(latlng.lat, latlng.lng);
   };
-  // -------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!currentUser) { setError("คุณต้องล็อกอินก่อน"); return; }
+    
+    // --- ⬇️ 2. Data Validation เพิ่มความปลอดภัยของข้อมูล ⬇️ ---
+    if (!shopName.trim() || !operatingHours.trim() || !address.trim()) {
+      setError("กรุณากรอกข้อมูลบังคับให้ครบถ้วน (ห้ามใส่แค่ช่องว่าง)");
+      return;
+    }
+    if (shopName.length > 60) {
+      setError("ชื่อร้านยาวเกินไป (ไม่เกิน 60 ตัวอักษร)");
+      return;
+    }
+    // --- ⬆️ จบ Data Validation ⬆️ ---
+
     if (!markerPosition) { setError("กรุณาปักหมุดตำแหน่งร้านค้า"); return; }
     if (isGeocoding) { setError("กรุณารอการค้นหาที่อยู่ให้เสร็จสิ้นก่อน"); return; }
 
@@ -102,10 +98,10 @@ const ShopRegistrationForm = () => {
 
     try {
       const newShopData = {
-        shopName,
-        address, // (ใช้ที่อยู่ที่ได้มา)
-        operatingHours,
-        description,
+        shopName: shopName.trim(), // ตัดช่องว่างส่วนเกินก่อนบันทึก
+        address: address.trim(),
+        operatingHours: operatingHours.trim(),
+        description: description.trim(),
         coordinates: {
           lat: markerPosition.lat,
           lng: markerPosition.lng,
@@ -142,24 +138,23 @@ const ShopRegistrationForm = () => {
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="shopName">ชื่อร้าน (บังคับ)</label>
-            <input id="shopName" type="text" value={shopName} onChange={(e) => setShopName(e.target.value)} required disabled={loading} />
+            <input id="shopName" type="text" value={shopName} onChange={(e) => setShopName(e.target.value)} required disabled={loading} maxLength={60} />
           </div>
           <div className="form-group">
             <label htmlFor="hours">เวลาเปิด-ปิด (บังคับ)</label>
-            <input id="hours" type="text" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required disabled={loading} />
+            <input id="hours" type="text" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required disabled={loading} maxLength={50} />
           </div>
         </div>
         
-        {/* --- 4. (แก้ไข Input ที่อยู่) --- */}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="address">ที่อยู่ (บังคับ - ระบบจะกรอกให้เมื่อปักหมุด)</label>
             <input 
               id="address" 
               type="text" 
-              value={isGeocoding ? 'กำลังค้นหาที่อยู่...' : address} // (แสดงสถานะ)
+              value={isGeocoding ? 'กำลังค้นหาที่อยู่...' : address}
               onChange={(e) => {
-                setIsGeocoding(false); // (ถ้า User พิมพ์เอง ก็หยุด loading)
+                setIsGeocoding(false);
                 setAddress(e.target.value); 
               }} 
               required 
@@ -167,12 +162,11 @@ const ShopRegistrationForm = () => {
             />
           </div>
         </div>
-        {/* --------------------------- */}
 
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="description">คำอธิบายร้านค้า (ไม่บังคับ)</label>
-            <textarea id="description" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} />
+            <textarea id="description" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} maxLength={200} />
           </div>
         </div>
         

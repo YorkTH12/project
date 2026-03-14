@@ -4,19 +4,18 @@ import { db } from '../firebase/config';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import L from 'leaflet';
 
-// (Import Icons ที่เราสร้างไว้)
 import { getIcon } from '../utils/mapIcons';
 
-// (พิกัดศูนย์กลาง มจพ.)
+// พิกัดศูนย์กลาง
 const center = [13.8197, 100.5146];
 
 const MapDisplay = () => {
   const [allLocations, setAllLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'shop', 'booth'
+  const [filter, setFilter] = useState('all');
 
-  // (useEffect ดึงข้อมูล - เหมือนเดิม)
+  // ดึงข้อมูลจาก Firebase แบบ Realtime
   useEffect(() => {
     setLoading(true);
     const q = query(
@@ -38,23 +37,23 @@ const MapDisplay = () => {
     return () => unsubscribe();
   }, []);
 
-  // (กรองข้อมูล - เหมือนเดิม)
+  // กรองข้อมูลตามปุ่มที่กด
   const filteredLocations = allLocations.filter(loc => {
     if (filter === 'all') return true;
     return loc.type === filter;
   });
 
-  // (Helper function - เหมือนเดิม)
   const getButtonClass = (type) => {
     return filter === type ? 'btn primary' : 'btn';
   };
+  
   const allCount = allLocations.length;
   const shopCount = allLocations.filter(l => l.type === 'shop').length;
   const boothCount = allLocations.filter(l => l.type === 'booth').length;
 
   return (
     <div>
-      {/* (ส่วนของปุ่ม Filter - เหมือนเดิม) */}
+      {/* ส่วนปุ่มกด Filter */}
       <div style={{ display: 'flex', gap: '10px', padding: 'var(--spacing-md) var(--spacing-md) 0' }}>
         <button className={getButtonClass('all')} onClick={() => setFilter('all')}>
           แสดงทั้งหมด ({allCount})
@@ -70,7 +69,7 @@ const MapDisplay = () => {
       {loading && <p style={{ padding: '20px' }}>กำลังโหลดแผนที่...</p>}
       {error && <p className="error-text" style={{ padding: '20px' }}>{error}</p>}
       
-      {/* (ส่วนของแผนที่ - เหมือนเดิม) */}
+      {/* ส่วนแสดงแผนที่ */}
       <MapContainer 
         center={center} 
         zoom={14} 
@@ -81,37 +80,49 @@ const MapDisplay = () => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
         
+        {/* --- ⬇️ เอา Cluster ออก และใช้ Marker ธรรมดา เพื่อให้แสดงเป็นหมุด (Pin) เสมอ ⬇️ --- */}
         {filteredLocations.map((loc) => (
           <Marker 
             key={loc.id} 
             position={[loc.coordinates.lat, loc.coordinates.lng]}
             icon={getIcon(loc.type)}
           >
-            {/* --- ⬇️ (นี่คือจุดที่แก้ไข) ⬇️ --- */}
-            {/* (เราเติมเนื้อหาเข้าไปใน Popup) */}
             <Popup>
               <h3 style={{margin: 0, padding: 0, fontSize: '1.1rem'}}>{loc.shopName}</h3>
               <span style={{
                   background: loc.type === 'shop' ? 'var(--accent)' : '#E9D5FF', 
                   color: loc.type === 'shop' ? 'white' : '#5B21B6',
-                  padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600
+                  padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, display: 'inline-block', marginTop: '4px'
                 }}>
                 {loc.type === 'shop' ? 'ร้านรับซื้อ' : 'ตู้แยกขวด'}
               </span>
+              
+              {/* ดักจับรูปภาพพัง (Fallback Image) */}
+              {loc.imageUrl && (
+                <img 
+                  src={loc.imageUrl || '/logo192.png'} 
+                  alt={loc.shopName}
+                  style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '8px' }}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/logo192.png';
+                  }}
+                />
+              )}
+
               <p style={{margin: '8px 0 0 0', fontSize: '0.9rem'}}>
                 <b>เวลาทำการ:</b> {loc.operatingHours} <br />
                 <b>ที่อยู่:</b> {loc.address}
               </p>
-              {/* (แสดงคำอธิบาย ถ้ามี) */}
               {loc.description && (
                 <p style={{fontStyle: 'italic', margin: '4px 0 0 0', fontSize: '0.9rem'}}>
                   "{loc.description}"
                 </p>
               )}
             </Popup>
-            {/* --- ⬆️ (จบจุดที่แก้ไข) ⬆️ --- */}
           </Marker>
         ))}
+        {/* --- ⬆️ จบส่วน Marker ⬆️ --- */}
       </MapContainer>
     </div>
   );

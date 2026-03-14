@@ -14,6 +14,18 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // --- ⬇️ 1. เพิ่ม Validation ดักข้อมูลขยะและรหัสผ่านสั้นเกินไป ⬇️ ---
+    if (!email.trim() || !password.trim()) {
+      setError('กรุณากรอกอีเมลและรหัสผ่าน ห้ามเป็นช่องว่าง');
+      return;
+    }
+    if (password.length < 6) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+    // --- ⬆️ จบส่วน Validation ⬆️ ---
+
     if (password !== confirmPassword) {
       setError('รหัสผ่านไม่ตรงกัน');
       return;
@@ -22,17 +34,15 @@ const Register = () => {
     setError('');
     setLoading(true);
     try {
-      // assume register throws on failure (Firebase / typical auth libs)
       await register(email, password);
-
-      // register resolved => proceed to home (user may already be logged in)
       navigate('/');
     } catch (err) {
       console.error('register error', err);
-      // provide clearer messages for common cases if available
       const code = err?.code || err?.message || '';
       if (code.includes('email-already') || code.includes('auth/email-already-in-use')) {
-        setError('อีเมลนี้ถูกใช้งานแล้ว');
+        setError('อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น');
+      } else if (code.includes('invalid-email')) {
+        setError('รูปแบบอีเมลไม่ถูกต้อง');
       } else {
         setError('ไม่สามารถสมัครสมาชิกได้ (โปรดลองอีกครั้ง)');
       }
@@ -58,7 +68,7 @@ const Register = () => {
 
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">Password (ขั้นต่ำ 6 ตัวอักษร)</label>
             <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
 
