@@ -80,6 +80,7 @@ const MapDisplay = () => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
         
+        {}
         {/* --- ⬇️ เอา Cluster ออก และใช้ Marker ธรรมดา เพื่อให้แสดงเป็นหมุด (Pin) เสมอ ⬇️ --- */}
         {filteredLocations.map((loc) => (
           <Marker 
@@ -118,6 +119,28 @@ const MapDisplay = () => {
                 <p style={{fontStyle: 'italic', margin: '4px 0 0 0', fontSize: '0.9rem'}}>
                   "{loc.description}"
                 </p>
+              )}
+
+              {/* ADDED: ปุ่มนำทางไป Google Maps */}
+              {loc.coordinates?.lat && loc.coordinates?.lng && (
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${loc.coordinates.lat},${loc.coordinates.lng}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="btn primary fullWidth"
+                  style={{ 
+                    textDecoration: 'none', 
+                    padding: '8px 12px', 
+                    fontSize: '0.9rem', 
+                    marginTop: '12px', 
+                    display: 'flex', 
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  🗺️ นำทางไปที่นี่
+                </a>
               )}
             </Popup>
           </Marker>

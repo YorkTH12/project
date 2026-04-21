@@ -1,49 +1,34 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
-// --- Import หน้า Public ---
-import Home from '../pages/Home';
-import Login from '../pages/Login';
-import Register from '../pages/Register';
-
-// --- ⭐️ Import ยามเฝ้าประตู (Protected Routes) ⭐️ ---
+// นำเข้า Components
 import AdminRoute from './AdminRoute';
-import OwnerRoute from './OwnerRoute';
-
-// --- Import หน้าของ Admin ---
 import AdminDashboard from '../pages/AdminDashboard';
-
-// --- Import หน้าของ Owner ---
+import MapDisplay from '../pages/MapDisplay';
+import Login from '../pages/Login';
 import ShopRegistrationForm from '../pages/ShopRegistrationForm';
 import BoothRegistrationForm from '../pages/BoothRegistrationForm';
-import ShopList from '../pages/ShopList';
-import EditShopPage from '../pages/EditShop';
+import EditShop from '../pages/EditShop';
+import Home from '../pages/Home';
 
 const AppRouter = () => {
   return (
     <Routes>
-      {/* 🟢 Public Routes: เส้นทางที่ทุกคนเข้าได้ (ไม่ต้องล็อกอิน) */}
+      {/* Public Routes (ผู้ใช้งานทั่วไปดูได้) */}
       <Route path="/" element={<Home />} />
+      <Route path="/map" element={<MapDisplay />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
 
-      {/* 🟠 Owner & Admin Routes: เส้นทางที่ต้องล็อกอินเป็น Owner หรือ Admin ถึงจะเข้าได้ */}
-      {/* เราใช้ <OwnerRoute /> ครอบเส้นทางเหล่านี้ไว้ */}
-      <Route element={<OwnerRoute />}>
+      {/* Admin Routes (ผู้ดูแลระบบเท่านั้น) */}
+      <Route element={<AdminRoute />}>
+        {/* MODIFIED: แก้ไข path ให้ตรงกับ Navbar.js ที่คุณตั้งไว้ */}
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/shop-form" element={<ShopRegistrationForm />} />
         <Route path="/booth-form" element={<BoothRegistrationForm />} />
-        <Route path="/shop-list" element={<ShopList />} />
-        <Route path="/edit-shop/:shopId" element={<EditShopPage />} /> 
+        <Route path="/edit-shop/:id" element={<EditShop />} />
       </Route>
-
-      {/* 🔴 Admin Only Routes: เส้นทางลับเฉพาะ Admin เท่านั้น */}
-      {/* เราใช้ <AdminRoute /> ครอบเส้นทางของ Admin ไว้ */}
-      <Route element={<AdminRoute />}>
-        <Route path="/admin" element={<AdminDashboard />} /> 
-      </Route>
-      
     </Routes>
-  ); 
+  );
 };
 
 export default AppRouter;

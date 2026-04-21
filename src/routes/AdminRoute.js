@@ -10,12 +10,12 @@ const AdminRoute = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // ถ้าเป็น Admin อนุญาตให้ไปต่อ (เข้าถึงเนื้อหาได้)
+  // ถ้าเป็น Admin อนุญาตให้ไปต่อ (เข้าถึงเนื้อหาได้ผ่าน Outlet)
   if (userRole === 'admin') {
     return <Outlet />; 
   }
 
-  // ถ้าล็อกอินแล้ว แต่ไม่ใช่ Admin (เช่น เป็นแค่ User หรือ Owner) ให้เด้งกลับหน้าหลัก
+  // ถ้าล็อกอินแล้ว แต่ไม่ใช่ Admin ให้เด้งกลับหน้าหลัก
   return <Navigate to="/" replace />;
 };
 

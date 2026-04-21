@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react'; // ADDED: import useRef, useEffect
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -41,9 +41,17 @@ const ShopRegistrationForm = () => {
   const [error, setError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
 
+  // ADDED: ใช้ useRef เพื่อเก็บ Timeout (สำหรับทำ Debounce)
+  const debounceTimer = useRef(null);
+
+  // ADDED: ล้าง Timeout เวลาที่ออกจากหน้านี้
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
   const fetchAddressFromCoords = async (lat, lng) => {
-    setIsGeocoding(true);
-    setError('');
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=th`);
       if (!response.ok) throw new Error('Nominatim API call failed');
@@ -64,8 +72,21 @@ const ShopRegistrationForm = () => {
   };
 
   const handleMapClick = (latlng) => {
-    setMarkerPosition(latlng);
-    fetchAddressFromCoords(latlng.lat, latlng.lng);
+    setMarkerPosition(latlng); // ปักหมุดทันทีที่กด
+    setIsGeocoding(true); // ขึ้นสถานะว่ากำลังค้นหา
+    setAddress('กำลังดึงข้อมูลที่อยู่...'); 
+    setError('');
+
+    // MODIFIED: เทคนิค Debounce ถ้ายอสกดย้ำๆ มันจะยกเลิกการค้นหาครั้งก่อนหน้า
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    // แล้วหน่วงเวลา 1 วินาที (1000ms) ก่อนยิง API 
+    // ถ้ายอสหยุดกดครบ 1 วิ มันถึงจะไปดึงข้อมูลจริง
+    debounceTimer.current = setTimeout(() => {
+      fetchAddressFromCoords(latlng.lat, latlng.lng);
+    }, 1000);
   };
 
   const handleSubmit = async (e) => {
@@ -73,7 +94,6 @@ const ShopRegistrationForm = () => {
     
     if (!currentUser) { setError("คุณต้องล็อกอินก่อน"); return; }
     
-    // --- ⬇️ 2. Data Validation เพิ่มความปลอดภัยของข้อมูล ⬇️ ---
     if (!shopName.trim() || !operatingHours.trim() || !address.trim()) {
       setError("กรุณากรอกข้อมูลบังคับให้ครบถ้วน (ห้ามใส่แค่ช่องว่าง)");
       return;
@@ -82,7 +102,6 @@ const ShopRegistrationForm = () => {
       setError("ชื่อร้านยาวเกินไป (ไม่เกิน 60 ตัวอักษร)");
       return;
     }
-    // --- ⬆️ จบ Data Validation ⬆️ ---
 
     if (!markerPosition) { setError("กรุณาปักหมุดตำแหน่งร้านค้า"); return; }
     if (isGeocoding) { setError("กรุณารอการค้นหาที่อยู่ให้เสร็จสิ้นก่อน"); return; }
@@ -98,7 +117,7 @@ const ShopRegistrationForm = () => {
 
     try {
       const newShopData = {
-        shopName: shopName.trim(), // ตัดช่องว่างส่วนเกินก่อนบันทึก
+        shopName: shopName.trim(), 
         address: address.trim(),
         operatingHours: operatingHours.trim(),
         description: description.trim(),
@@ -107,7 +126,7 @@ const ShopRegistrationForm = () => {
           lng: markerPosition.lng,
         },
         ownerId: currentUser.uid,
-        status: 'pending',
+        status: 'approved',
         type: 'shop',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -115,8 +134,8 @@ const ShopRegistrationForm = () => {
 
       await addDoc(collection(db, 'shops'), newShopData);
       
-      alert("ส่งคำขอลงทะเบียนร้านค้าสำเร็จ!");
-      navigate('/shop-list');
+      alert("ลงทะเบียนร้านค้าสำเร็จและแสดงบนแผนที่แล้ว!");
+      navigate('/');
 
     } catch (err) {
       console.error("Error adding document: ", err);
@@ -143,6 +162,16 @@ const ShopRegistrationForm = () => {
           <div className="form-group">
             <label htmlFor="hours">เวลาเปิด-ปิด (บังคับ)</label>
             <input id="hours" type="text" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required disabled={loading} maxLength={50} />
+            <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+              {['08:00 - 17:00', '09:00 - 18:00', '08:00 - 20:00', 'เปิด 24 ชั่วโมง'].map(time => (
+                <button 
+                  key={time} type="button" onClick={() => setOperatingHours(time)} disabled={loading}
+                  style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg)', color: 'var(--muted)', cursor: 'pointer' }}
+                >
+                  {time}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         
@@ -152,13 +181,13 @@ const ShopRegistrationForm = () => {
             <input 
               id="address" 
               type="text" 
-              value={isGeocoding ? 'กำลังค้นหาที่อยู่...' : address}
+              value={address}
               onChange={(e) => {
                 setIsGeocoding(false);
                 setAddress(e.target.value); 
               }} 
               required 
-              disabled={loading} 
+              disabled={loading || isGeocoding} 
             />
           </div>
         </div>
@@ -186,7 +215,7 @@ const ShopRegistrationForm = () => {
         {error && <p className="error-text">{error}</p>}
 
         <button type="submit" className="btn primary fullWidth" disabled={loading || isGeocoding} style={{marginTop: '1rem'}}>
-          {loading ? 'กำลังส่งข้อมูล...' : (isGeocoding ? 'กำลังค้นหาที่อยู่...' : 'ส่งคำขอลงทะเบียน')}
+          {loading ? 'กำลังส่งข้อมูล...' : (isGeocoding ? 'กำลังค้นหาที่อยู่...' : 'ลงทะเบียนร้านค้า')}
         </button>
       </form>
     </div>

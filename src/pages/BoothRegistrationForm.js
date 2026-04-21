@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react'; // ADDED
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -6,13 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/global.css';
 
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
-import { greenIcon, greyIcon } from '../utils/mapIcons'; // (ใช้ greenIcon)
+import { greenIcon, greyIcon } from '../utils/mapIcons';
 
-// (Geofencing settings)
 const KMUTNB_COORDS = [13.8197, 100.5146];
 const MAX_DISTANCE_KM = 5; 
 
-// (MapClickHandler - ใช้ greenIcon)
 function MapClickHandler({ onMapClick, markerPosition }) {
   useMapEvents({ click(e) { onMapClick(e.latlng); } });
   return markerPosition ? (
@@ -22,38 +20,44 @@ function MapClickHandler({ onMapClick, markerPosition }) {
   ) : null;
 }
 
-// (Haversine functions)
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) { /* ... */ }
-function deg2rad(deg) { /* ... */ }
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) { 
+  var R = 6371; var dLat = deg2rad(lat2 - lat1); var dLon = deg2rad(lon2 - lon1);
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); var d = R * c; return d;
+}
+function deg2rad(deg) { return deg * (Math.PI / 180); }
 
 const BoothRegistrationForm = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const [shopName, setShopName] = useState(''); // (ชื่อตู้)
-  const [address, setAddress] = useState(''); // (จะถูก Set อัตโนมัติ)
+  const [shopName, setShopName] = useState(''); 
+  const [address, setAddress] = useState(''); 
   const [operatingHours, setOperatingHours] = useState('เปิด 24 ชั่วโมง');
   const [description, setDescription] = useState('');
   const [markerPosition, setMarkerPosition] = useState(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // --- 1. (เพิ่ม State) ---
   const [isGeocoding, setIsGeocoding] = useState(false);
-  // -------------------------
 
-  // --- 2. (ฟังก์ชันใหม่) ---
+  // ADDED: ใช้ useRef เพื่อเก็บ Timeout
+  const debounceTimer = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
   const fetchAddressFromCoords = async (lat, lng) => {
-    setIsGeocoding(true);
-    setError('');
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=th`);
       if (!response.ok) throw new Error('Nominatim API call failed');
       const data = await response.json();
       
       if (data && data.display_name) {
-        setAddress(data.display_name); // ⭐️ (กรอกที่อยู่ให้อัตโนมัติ)
+        setAddress(data.display_name); 
       } else {
         setError("ไม่สามารถค้นหาที่อยู่จากพิกัดนี้ได้");
         setAddress('');
@@ -65,14 +69,22 @@ const BoothRegistrationForm = () => {
     }
     setIsGeocoding(false);
   };
-  // -------------------------
 
-  // --- 3. (แก้ไข) ---
   const handleMapClick = (latlng) => {
-    setMarkerPosition(latlng); // 1. ปักหมุด
-    fetchAddressFromCoords(latlng.lat, latlng.lng); // 2. ค้นหาที่อยู่
+    setMarkerPosition(latlng); 
+    setIsGeocoding(true);
+    setAddress('กำลังดึงข้อมูลที่อยู่...');
+    setError('');
+
+    // MODIFIED: เทคนิค Debounce กันรัวปุ่ม
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      fetchAddressFromCoords(latlng.lat, latlng.lng);
+    }, 1000); // ดีเลย์ 1 วิ
   };
-  // -------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,7 +105,7 @@ const BoothRegistrationForm = () => {
     try {
       const newBoothData = {
         shopName,
-        address, // (ใช้ที่อยู่ที่ได้มา)
+        address, 
         operatingHours,
         description,
         coordinates: {
@@ -101,16 +113,16 @@ const BoothRegistrationForm = () => {
           lng: markerPosition.lng,
         },
         ownerId: currentUser.uid,
-        status: 'pending',
-        type: 'booth', // (Type เป็น 'booth')
+        status: 'approved', 
+        type: 'booth', 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
       await addDoc(collection(db, 'shops'), newBoothData);
       
-      alert("ส่งคำขอลงทะเบียนตู้สำเร็จ!");
-      navigate('/shop-list');
+      alert("ลงทะเบียนตู้สำเร็จและแสดงบนแผนที่แล้ว!");
+      navigate('/');
 
     } catch (err) {
       console.error("Error adding document: ", err);
@@ -137,27 +149,35 @@ const BoothRegistrationForm = () => {
           <div className="form-group">
             <label htmlFor="hours">เวลาทำการ (บังคับ)</label>
             <input id="hours" type="text" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required disabled={loading} />
+            <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+              {['เปิด 24 ชั่วโมง', '06:00 - 22:00', '08:00 - 20:00', 'ตามเวลาเปิดห้าง'].map(time => (
+                <button 
+                  key={time} type="button" onClick={() => setOperatingHours(time)} disabled={loading}
+                  style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg)', color: 'var(--muted)', cursor: 'pointer' }}
+                >
+                  {time}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         
-        {/* --- 4. (แก้ไข Input ที่อยู่) --- */}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="address">ที่อยู่/คำอธิบายที่ตั้ง (บังคับ)</label>
             <input 
               id="address" 
               type="text" 
-              value={isGeocoding ? 'กำลังค้นหาที่อยู่...' : address} // (แสดงสถานะ)
+              value={address} 
               onChange={(e) => {
                 setIsGeocoding(false); 
                 setAddress(e.target.value); 
               }} 
               required 
-              disabled={loading} 
+              disabled={loading || isGeocoding} 
             />
           </div>
         </div>
-        {/* --------------------------- */}
 
         <div className="form-row">
           <div className="form-group">
@@ -182,7 +202,7 @@ const BoothRegistrationForm = () => {
         {error && <p className="error-text">{error}</p>}
 
         <button type="submit" className="btn primary fullWidth" disabled={loading || isGeocoding} style={{marginTop: '1rem'}}>
-          {loading ? 'กำลังส่งข้อมูล...' : (isGeocoding ? 'กำลังค้นหาที่อยู่...' : 'ส่งคำขอลงทะเบียนตู้')}
+          {loading ? 'กำลังบันทึกข้อมูล...' : (isGeocoding ? 'กำลังค้นหาที่อยู่...' : 'ลงทะเบียนตู้')}
         </button>
       </form>
     </div>

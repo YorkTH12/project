@@ -32,11 +32,11 @@ const Home = () => {
           <div style={{flex:1, minWidth:240}}>
             <h1 className="title">หน้าแรก: ค้นหาร้านขายขวด</h1>
             <p className="lead">ค้นหาและนำทางไปยังร้านรับซื้อขวดและตู้แยกขวดในพื้นที่ — ใช้แผนที่เพื่อสำรวจจุดที่ใกล้เคียงคุณ</p>
-            <div style={{marginTop:14, display:'flex', gap:10, flexWrap:'wrap'}}>
+            {/* <div style={{marginTop:14, display:'flex', gap:10, flexWrap:'wrap'}}>
               <Link to="/register" className="btn primary" style={{textDecoration:'none', minWidth:140, textAlign:'center'}}>
                 ลงทะเบียนร้านค้า
               </Link>
-            </div>
+            </div> */}
           </div>
 
           {/* (ส่วน Title/Lead - สำหรับตู้ (ถ้ามี)) */}
