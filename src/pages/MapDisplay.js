@@ -98,19 +98,6 @@ const MapDisplay = () => {
                 {loc.type === 'shop' ? 'ร้านรับซื้อ' : 'ตู้แยกขวด'}
               </span>
               
-              {/* ดักจับรูปภาพพัง (Fallback Image) */}
-              {loc.imageUrl && (
-                <img 
-                  src={loc.imageUrl || '/logo192.png'} 
-                  alt={loc.shopName}
-                  style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '8px' }}
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = '/logo192.png';
-                  }}
-                />
-              )}
-
               <p style={{margin: '8px 0 0 0', fontSize: '0.9rem'}}>
                 <b>เวลาทำการ:</b> {loc.operatingHours} <br />
                 <b>ที่อยู่:</b> {loc.address}

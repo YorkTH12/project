@@ -1,8 +1,8 @@
 // src/context/AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { auth, db } from '../firebase/config'; // (ไฟล์ config ที่ export auth และ firestore)
-import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../firebase/config'; 
+import { onAuthStateChanged, signOut, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 // 1. สร้าง Context
 const AuthContext = createContext();
@@ -10,7 +10,7 @@ const AuthContext = createContext();
 // 2. สร้าง Provider Component
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // ('user', 'owner', 'admin')
+  const [userRole, setUserRole] = useState(null); // ('user', 'admin')
   const [loading, setLoading] = useState(true); // สถานะ Loading ตอนเริ่มแอปฯ
 
   // 3. ฟังการเปลี่ยนแปลงสถานะ Auth (Login/Logout)
@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
           // 3. ถ้ามีเอกสาร user, ให้ดึง role มาเก็บใน state
           setUserRole(userDocSnap.data().role);
         } else {
-          // (กรณีที่ User สมัครผ่าน Auth แต่ยังไม่มีเอกสารใน Firestore)
+          // (กรณีที่ User ล็อกอินเข้ามาแต่ยังไม่มีเอกสารใน Firestore)
           console.warn("No user document found for UID:", user.uid);
           setUserRole('user'); // ให้ Role พื้นฐานไปก่อน
         }
@@ -47,30 +47,12 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // --- ฟังก์ชันสำหรับการ Register (ตัวอย่าง) ---
-  const register = async (email, password) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
-    // *** สร้างเอกสารใน 'users' collection ทันทีหลังสมัคร ***
-    const userDocRef = doc(db, 'users', user.uid);
-    await setDoc(userDocRef, {
-      uid: user.uid,
-      email: user.email,
-      role: 'owner', // <-- ตั้งค่า Role เริ่มต้นให้เป็น 'owner' ตาม Requirement
-      createdAt: serverTimestamp(),
-    });
-
-    // อัปเดต Role ใน State ทันที
-    setUserRole('owner');
-  };
-
-  // --- ฟังก์ชันสำหรับการ Login (ตัวอย่าง) ---
+  // --- ฟังก์ชันสำหรับการ Login ---
   const login = (email, password) => {
     return signInWithEmailAndPassword(auth, email, password);
   };
 
-  // --- ฟังก์ชันสำหรับการ Logout (ตัวอย่าง) ---
+  // --- ฟังก์ชันสำหรับการ Logout ---
   const logout = () => {
     return signOut(auth);
   };
@@ -81,7 +63,6 @@ export const AuthProvider = ({ children }) => {
     userRole,
     loading,
     login,
-    register,
     logout,
   };
 
